@@ -2,7 +2,7 @@
   "name": "vscode-http-client",
   "displayName": "Tunder Client",
   "description": "Just Fuck Thunder Client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "o98k",
   "icon": "media/icon.png",
   "engines": {

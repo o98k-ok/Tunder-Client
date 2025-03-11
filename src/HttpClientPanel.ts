@@ -13,7 +13,7 @@ export class HttpClientPanel {
   public folderId: string | undefined = undefined;
 
   public static createOrShow(extensionUri: vscode.Uri, request?: Request) {
-    const column = vscode.ViewColumn.Two;
+    const column = vscode.ViewColumn.Active;
 
     if (HttpClientPanel.currentPanel) {
       HttpClientPanel.currentPanel._panel.reveal(column);
@@ -316,6 +316,23 @@ export class HttpClientPanel {
                 resize: vertical;
                 tab-size: 2;
                 line-height: 1.4;
+                white-space: pre;
+                overflow-x: auto;
+                color: var(--vscode-editor-foreground);
+                background-color: var(--vscode-editor-background);
+            }
+            
+            textarea::selection {
+                background-color: var(--vscode-editor-selectionBackground);
+            }
+            
+            /* JSON 语法高亮 */
+            textarea.json-content {
+                color: var(--json-string-color);
+            }
+            
+            textarea.json-content::placeholder {
+                color: var(--vscode-input-placeholderForeground);
             }
             
             button {
@@ -499,8 +516,8 @@ export class HttpClientPanel {
                 padding: var(--spacing);
                 background: var(--vscode-textBlockQuote-background);
                 border-radius: var(--border-radius);
-                overflow: auto;
-                white-space: pre-wrap;
+                overflow-x: auto;
+                white-space: pre;
                 font-family: 'Fira Code', 'Consolas', monospace;
             }
             
@@ -737,6 +754,22 @@ export class HttpClientPanel {
                     });
                 }
 
+                // 格式化请求体
+                document.getElementById('formatBody').addEventListener('click', () => {
+                    const textarea = document.getElementById('requestBody');
+                    try {
+                        const json = JSON.parse(textarea.value);
+                        const formattedJson = JSON.stringify(json, null, 2);
+                        textarea.value = formattedJson;
+                        textarea.classList.add('json-content');
+                        textarea.focus();
+                    } catch (e) {
+                        // 如果不是有效的 JSON，保持原样
+                        console.error('Invalid JSON:', e);
+                        textarea.classList.remove('json-content');
+                    }
+                });
+
                 // 重置响应区域
                 function resetResponse() {
                     const responseContainer = document.getElementById('responseContainer');
@@ -854,18 +887,6 @@ export class HttpClientPanel {
                         data: requestData
                     });
                 }
-
-                // 格式化请求体
-                document.getElementById('formatBody').addEventListener('click', () => {
-                    const textarea = document.getElementById('requestBody');
-                    try {
-                        const json = JSON.parse(textarea.value);
-                        textarea.value = JSON.stringify(json, null, 2);
-                    } catch (e) {
-                        // 如果不是有效的 JSON，保持原样
-                        console.error('Invalid JSON:', e);
-                    }
-                });
             })();
         </script>
     </body>
@@ -908,6 +929,9 @@ export class HttpClientPanel {
       vscode.window.showErrorMessage('无效的请求');
       return;
     }
+    
+    // 切换焦点到请求面板
+    this._panel.reveal(vscode.ViewColumn.Active);
     
     // 存储当前请求对象的引用
     this._currentRequestItem = request;
