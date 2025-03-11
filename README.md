@@ -16,7 +16,7 @@
 
 ## 界面预览
 
-![](./media/image.png)
+![](https://github.com/o98k-ok/Tunder-Client/raw/main/media/image.png)
 
 * 请求列表视图
   * 使用不同颜色区分 HTTP 方法

@@ -3,7 +3,7 @@
   "displayName": "Tunder Client",
   "description": "Just Fuck Thunder Client",
   "version": "0.1.0",
-  "publisher": "o98k && cursor",
+  "publisher": "o98k",
   "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.60.0"
