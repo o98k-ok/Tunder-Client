@@ -1,9 +1,9 @@
 {
   "name": "vscode-http-client",
-  "displayName": "HTTP Client",
-  "description": "简化版Postman，用于HTTP请求调试",
-  "version": "0.0.1",
-  "publisher": "user",
+  "displayName": "Tunder Client",
+  "description": "Just Fuck Thunder Client",
+  "version": "0.1.0",
+  "publisher": "o98k && cursor",
   "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.60.0"
@@ -22,7 +22,7 @@
       "activitybar": [
         {
           "id": "httpClient",
-          "title": "HTTP Client",
+          "title": "Tunder Client",
           "icon": "media/icon.png"
         }
       ]
@@ -31,87 +31,47 @@
       "httpClient": [
         {
           "id": "httpClientDirectories",
-          "name": "目录",
+          "name": "HTTP Collections",
           "icon": "$(folder)",
-          "contextualTitle": "HTTP Client Directories"
+          "contextualTitle": "HTTP Collections"
         }
       ]
     },
     "commands": [
       {
         "command": "vscode-http-client.start",
-        "title": "HTTP Client: 打开HTTP调试工具"
+        "title": "打开[Tunder Client]"
       },
       {
         "command": "httpClient.createFolder",
-        "title": "HTTP Client: 创建文件夹",
-        "icon": "$(add)"
+        "title": "➕ 创建目录",
+        "icon": "$(new-folder)"
       },
       {
         "command": "httpClient.createRequest",
-        "title": "HTTP Client: 创建请求",
-        "icon": "$(add)"
+        "title": "➕ 创建请求",
+        "icon": "$(new-file)"
       },
       {
         "command": "httpClient.editFolder",
-        "title": "HTTP Client: 编辑文件夹"
+        "title": "✏️ 编辑目录"
       },
       {
         "command": "httpClient.deleteFolder",
-        "title": "HTTP Client: 删除文件夹"
+        "title": "❌ 删除目录"
       },
       {
         "command": "httpClient.editRequest",
-        "title": "HTTP Client: 编辑请求"
+        "title": "✏️ 编辑请求"
       },
       {
         "command": "httpClient.deleteRequest",
-        "title": "HTTP Client: 删除请求"
+        "title": "❌ 删除请求"
       },
       {
         "command": "httpClient.loadRequest",
-        "title": "HTTP Client: 加载请求"
-      },
-      {
-        "command": "httpClient.createTag",
-        "title": "HTTP Client: 创建标签",
-        "icon": "$(tag-add)"
-      },
-      {
-        "command": "httpClient.editTag",
-        "title": "HTTP Client: 编辑标签"
-      },
-      {
-        "command": "httpClient.deleteTag",
-        "title": "HTTP Client: 删除标签"
-      },
-      {
-        "command": "httpClient.addTagToRequest",
-        "title": "HTTP Client: 添加标签到请求"
-      },
-      {
-        "command": "httpClient.removeTagFromRequest",
-        "title": "HTTP Client: 从请求中移除标签"
-      },
-      {
-        "command": "httpClient.toggleViewMode",
-        "title": "HTTP Client: 切换视图模式",
-        "icon": "$(list-tree)"
-      },
-      {
-        "command": "httpClient.searchRequests",
-        "title": "HTTP Client: 搜索请求",
-        "icon": "$(search)"
-      },
-      {
-        "command": "httpClient.filterByTags",
-        "title": "HTTP Client: 按标签筛选",
-        "icon": "$(filter)"
-      },
-      {
-        "command": "httpClient.clearFilters",
-        "title": "HTTP Client: 清除筛选",
-        "icon": "$(clear-all)"
+        "title": "view more",
+        "icon": "$(eye)"
       }
     ],
 
@@ -124,11 +84,6 @@
         }
       ],
       "view/item/context": [
-        {
-          "command": "httpClient.createFolder",
-          "when": "view == httpClientDirectories && viewItem == directory",
-          "group": "inline"
-        },
         {
           "command": "httpClient.createRequest",
           "when": "view == httpClientDirectories && viewItem == directory",

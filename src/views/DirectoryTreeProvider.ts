@@ -65,7 +65,11 @@ class DirectoryTreeItem extends vscode.TreeItem {
         super(label, collapsibleState);
         this.tooltip = label;
         this.contextValue = 'directory';
-        this.iconPath = new vscode.ThemeIcon('folder');
+        
+        const colorOptions = ['blue', 'green', 'orange', 'red', 'yellow'];
+        const colorIndex = parseInt(this.id, 10) % colorOptions.length;
+        const selectedColor = `charts.${colorOptions[colorIndex]}`;
+        this.iconPath = new vscode.ThemeIcon('folder', new vscode.ThemeColor(selectedColor));
     }
 }
 
@@ -78,21 +82,40 @@ class RequestTreeItem extends vscode.TreeItem {
         super(label, vscode.TreeItemCollapsibleState.None);
         this.tooltip = `${method} ${label}`;
         this.contextValue = 'request';
-        this.iconPath = new vscode.ThemeIcon(this.getMethodIcon(method));
+
+        // 根据方法类型设置不同的颜色
+        let color: string;
+        switch (method.toUpperCase()) {
+            case 'GET':
+                color = 'charts.blue';
+                break;
+            case 'POST':
+                color = 'charts.green';
+                break;
+            case 'PUT':
+                color = 'charts.orange';
+                break;
+            case 'DELETE':
+                color = 'charts.red';
+                break;
+            case 'PATCH':
+                color = 'charts.yellow';
+                break;
+            default:
+                color = 'foreground';
+        }
+
+        // 设置图标和颜色
+        this.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor(color));
+        
+        // 设置方法名称作为描述
+        this.description = `${method}`;
+
+        // 设置命令
         this.command = {
             command: 'httpClient.loadRequest',
-            title: '加载请求',
+            title: '',
             arguments: [this]
         };
-    }
-
-    private getMethodIcon(method: string): string {
-        switch (method.toUpperCase()) {
-            case 'GET': return 'arrow-down';
-            case 'POST': return 'arrow-up';
-            case 'PUT': return 'arrow-both';
-            case 'DELETE': return 'trash';
-            default: return 'circle-outline';
-        }
     }
 }

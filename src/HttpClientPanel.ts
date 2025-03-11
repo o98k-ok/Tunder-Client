@@ -25,7 +25,7 @@ export class HttpClientPanel {
 
     const panel = vscode.window.createWebviewPanel(
       'httpClient',
-      'HTTP Client',
+      'Tunder Client',
       column,
       {
         enableScripts: true,
@@ -186,7 +186,7 @@ export class HttpClientPanel {
 
   private _update() {
     const webview = this._panel.webview;
-    this._panel.title = "HTTP Client";
+    this._panel.title = "Tunder Client";
     this._panel.webview.html = this._getHtmlForWebview(webview, this._extensionUri);
   }
 
@@ -197,7 +197,7 @@ export class HttpClientPanel {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'unsafe-inline';">
-        <title>HTTP Client</title>
+        <title>Tunder Client</title>
         <style>
             :root {
                 --border-radius: 6px;
@@ -347,8 +347,10 @@ export class HttpClientPanel {
             }
             
             .send-btn {
-                min-width: 80px;
+                min-width: 60px;
                 justify-content: center;
+                padding: 6px 8px;
+                font-size: 12px;
             }
             
             .save-btn {
@@ -597,7 +599,10 @@ export class HttpClientPanel {
                 <button class="add-header-btn" id="addHeader">添加请求头</button>
 
                 <div class="section-title">请求体</div>
-                <textarea id="requestBody" placeholder="请输入请求体"></textarea>
+                <div style="position: relative;">
+                    <textarea id="requestBody" placeholder="请输入请求体"></textarea>
+                    <button id="formatBody" style="position: absolute; right: 8px; top: 8px; padding: 4px 8px; font-size: 12px; height: 24px; background: none; border: 1px solid var(--vscode-button-background); color: var(--vscode-button-background);">格式化</button>
+                </div>
             </div>
 
             <div class="response-section" id="responseContainer" style="display: none;">
@@ -849,6 +854,18 @@ export class HttpClientPanel {
                         data: requestData
                     });
                 }
+
+                // 格式化请求体
+                document.getElementById('formatBody').addEventListener('click', () => {
+                    const textarea = document.getElementById('requestBody');
+                    try {
+                        const json = JSON.parse(textarea.value);
+                        textarea.value = JSON.stringify(json, null, 2);
+                    } catch (e) {
+                        // 如果不是有效的 JSON，保持原样
+                        console.error('Invalid JSON:', e);
+                    }
+                });
             })();
         </script>
     </body>

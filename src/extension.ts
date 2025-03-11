@@ -5,8 +5,6 @@ import { DirectoryTreeProvider } from './views/DirectoryTreeProvider';
 import { RequestService } from './services/requestService';
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log('HTTP Client 插件已激活');
-
   // 创建directoryService实例
   const directoryService = new DirectoryService(context);
   
@@ -288,17 +286,14 @@ export function activate(context: vscode.ExtensionContext) {
     try {
       HttpClientPanel.createOrShow(context.extensionUri);
     } catch (error) {
-      console.error('打开HTTP Client面板时出错:', error);
-      vscode.window.showErrorMessage(`打开HTTP Client失败: ${error instanceof Error ? error.message : String(error)}`);
+      console.error('打开Tunder Client面板时出错:', error);
+      vscode.window.showErrorMessage(`打开Tunder Client失败: ${error instanceof Error ? error.message : String(error)}`);
     }
   });
 
   context.subscriptions.push(disposable);
-  
-  // 显示通知，表明插件已激活
-  vscode.window.showInformationMessage('HTTP Client 插件已激活，可以通过命令面板使用');
 }
 
 export function deactivate() {
-  console.log('HTTP Client 插件已停用');
+  console.log('Tunder Client 插件已停用');
 }
