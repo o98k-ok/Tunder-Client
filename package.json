@@ -1,0 +1,189 @@
+{
+  "name": "vscode-http-client",
+  "displayName": "HTTP Client",
+  "description": "简化版Postman，用于HTTP请求调试",
+  "version": "0.0.1",
+  "publisher": "user",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:vscode-http-client.start",
+    "onCommand:httpClient.loadRequest",
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "httpClient",
+          "title": "HTTP Client",
+          "icon": "media/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "httpClient": [
+        {
+          "id": "httpClientDirectories",
+          "name": "目录",
+          "icon": "$(folder)",
+          "contextualTitle": "HTTP Client Directories"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "vscode-http-client.start",
+        "title": "HTTP Client: 打开HTTP调试工具"
+      },
+      {
+        "command": "httpClient.createFolder",
+        "title": "HTTP Client: 创建文件夹",
+        "icon": "$(add)"
+      },
+      {
+        "command": "httpClient.createRequest",
+        "title": "HTTP Client: 创建请求",
+        "icon": "$(add)"
+      },
+      {
+        "command": "httpClient.editFolder",
+        "title": "HTTP Client: 编辑文件夹"
+      },
+      {
+        "command": "httpClient.deleteFolder",
+        "title": "HTTP Client: 删除文件夹"
+      },
+      {
+        "command": "httpClient.editRequest",
+        "title": "HTTP Client: 编辑请求"
+      },
+      {
+        "command": "httpClient.deleteRequest",
+        "title": "HTTP Client: 删除请求"
+      },
+      {
+        "command": "httpClient.loadRequest",
+        "title": "HTTP Client: 加载请求"
+      },
+      {
+        "command": "httpClient.createTag",
+        "title": "HTTP Client: 创建标签",
+        "icon": "$(tag-add)"
+      },
+      {
+        "command": "httpClient.editTag",
+        "title": "HTTP Client: 编辑标签"
+      },
+      {
+        "command": "httpClient.deleteTag",
+        "title": "HTTP Client: 删除标签"
+      },
+      {
+        "command": "httpClient.addTagToRequest",
+        "title": "HTTP Client: 添加标签到请求"
+      },
+      {
+        "command": "httpClient.removeTagFromRequest",
+        "title": "HTTP Client: 从请求中移除标签"
+      },
+      {
+        "command": "httpClient.toggleViewMode",
+        "title": "HTTP Client: 切换视图模式",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "httpClient.searchRequests",
+        "title": "HTTP Client: 搜索请求",
+        "icon": "$(search)"
+      },
+      {
+        "command": "httpClient.filterByTags",
+        "title": "HTTP Client: 按标签筛选",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "httpClient.clearFilters",
+        "title": "HTTP Client: 清除筛选",
+        "icon": "$(clear-all)"
+      }
+    ],
+
+    "menus": {
+      "view/title": [
+        {
+          "command": "httpClient.createFolder",
+          "when": "view == httpClientDirectories",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "httpClient.createFolder",
+          "when": "view == httpClientDirectories && viewItem == directory",
+          "group": "inline"
+        },
+        {
+          "command": "httpClient.createRequest",
+          "when": "view == httpClientDirectories && viewItem == directory",
+          "group": "inline@1"
+        },
+        {
+          "command": "httpClient.editFolder",
+          "when": "view == httpClientDirectories && viewItem == directory",
+          "group": "1_modification"
+        },
+        {
+          "command": "httpClient.deleteFolder",
+          "when": "view == httpClientDirectories && viewItem == directory",
+          "group": "1_modification"
+        },
+        {
+          "command": "httpClient.loadRequest",
+          "when": "view == httpClientDirectories && viewItem == request",
+          "group": "inline"
+        },
+        {
+          "command": "httpClient.editRequest",
+          "when": "view == httpClientDirectories && viewItem == request",
+          "group": "1_modification"
+        },
+        {
+          "command": "httpClient.deleteRequest",
+          "when": "view == httpClientDirectories && viewItem == request",
+          "group": "1_modification"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.60.0",
+    "@types/glob": "^7.1.3",
+    "@types/mocha": "^8.2.2",
+    "@types/node": "14.x",
+    "eslint": "^7.27.0",
+    "@typescript-eslint/eslint-plugin": "^4.26.0",
+    "@typescript-eslint/parser": "^4.26.0",
+    "glob": "^7.1.7",
+    "mocha": "^8.4.0",
+    "typescript": "^4.3.2",
+    "vscode-test": "^1.5.2"
+  },
+  "dependencies": {
+    "axios": "^0.21.1"
+  }
+}
