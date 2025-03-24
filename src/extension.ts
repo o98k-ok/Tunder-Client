@@ -161,6 +161,21 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  // 注册复制请求命令
+  context.subscriptions.push(
+    vscode.commands.registerCommand('httpClient.copyRequest', async (item) => {
+      if (!item) return;
+      
+      const newRequest = requestService.copyRequest(item.id);
+      if (newRequest) {
+        directoryTreeProvider.refresh();
+        vscode.window.showInformationMessage(`请求 "${item.label}" 已复制`);
+      } else {
+        vscode.window.showErrorMessage('复制请求失败');
+      }
+    })
+  );
+
   // 注册加载请求命令
   context.subscriptions.push(
     vscode.commands.registerCommand('httpClient.loadRequest', async (item) => {

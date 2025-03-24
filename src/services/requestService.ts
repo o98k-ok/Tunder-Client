@@ -119,6 +119,37 @@ export class RequestService {
     }
 
     /**
+     * 复制请求
+     * @param id 要复制的请求ID
+     * @returns 新创建的请求对象，失败返回null
+     */
+    copyRequest(id: string): Request | null {
+        try {
+            console.log('开始复制请求:', id);
+            const existingRequest = this.requests.get(id);
+            if (!existingRequest) {
+                console.log('未找到要复制的请求:', id);
+                return null;
+            }
+
+            // 创建新请求，复制原请求的属性（除了id、created_at和updated_at）
+            const newRequest = this.createRequest({
+                name: `${existingRequest.name} (复制)`,
+                method: existingRequest.method,
+                url: existingRequest.url,
+                headers: existingRequest.headers,
+                body: existingRequest.body,
+                folder_id: existingRequest.folder_id
+            });
+
+            return newRequest;
+        } catch (error) {
+            console.error('复制请求失败:', error);
+            return null;
+        }
+    }
+
+    /**
      * 获取所有请求
      */
     public getAllRequests(): Request[] {

@@ -69,6 +69,10 @@
         "title": "❌ 删除请求"
       },
       {
+        "command": "httpClient.copyRequest",
+        "title": "📋 复制请求"
+      },
+      {
         "command": "httpClient.loadRequest",
         "title": "view more",
         "icon": "$(eye)"
@@ -111,6 +115,11 @@
         },
         {
           "command": "httpClient.deleteRequest",
+          "when": "view == httpClientDirectories && viewItem == request",
+          "group": "1_modification"
+        },
+        {
+          "command": "httpClient.copyRequest",
           "when": "view == httpClientDirectories && viewItem == request",
           "group": "1_modification"
         }
