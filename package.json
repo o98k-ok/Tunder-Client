@@ -1,9 +1,9 @@
 {
-  "name": "vscode-http-client",
-  "displayName": "Tunder Client",
+  "name": "tunder-http-client",
+  "displayName": "Tunder Http Client",
   "description": "Just Fuck Thunder Client",
   "version": "0.1.2",
-  "publisher": "o98k",
+  "publisher": "o98k-ok",
   "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.60.0"
