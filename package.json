@@ -2,7 +2,7 @@
   "name": "tunder-http-client",
   "displayName": "Tunder Http Client",
   "description": "Just Fuck Thunder Client",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "publisher": "o98k-ok",
   "icon": "media/icon.png",
   "engines": {
