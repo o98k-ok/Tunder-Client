@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import { HttpClientPanel } from './HttpClientPanel';
 import { DirectoryService } from './services/directoryService';
 import { DirectoryTreeProvider } from './views/DirectoryTreeProvider';
@@ -21,6 +22,25 @@ export function activate(context: vscode.ExtensionContext) {
   
   // 注册目录树视图
   vscode.window.registerTreeDataProvider('httpClientDirectories', directoryTreeProvider);
+
+  // 注册打开存储目录命令
+  context.subscriptions.push(
+    vscode.commands.registerCommand('httpClient.openStorageFolder', async () => {
+      try {
+        // 确保存储目录存在
+        if (!fs.existsSync(context.globalStoragePath)) {
+          fs.mkdirSync(context.globalStoragePath, { recursive: true });
+        }
+        // 打开存储目录
+        const uri = vscode.Uri.file(context.globalStoragePath);
+        await vscode.commands.executeCommand('revealFileInOS', uri);
+        vscode.window.showInformationMessage(`已打开存储目录: ${context.globalStoragePath}`);
+      } catch (error) {
+        console.error('打开存储目录失败:', error);
+        vscode.window.showErrorMessage('打开存储目录失败');
+      }
+    })
+  );
 
   // 注册创建文件夹命令
   context.subscriptions.push(

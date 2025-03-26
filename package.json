@@ -43,6 +43,11 @@
         "title": "打开[Tunder Client]"
       },
       {
+        "command": "httpClient.openStorageFolder",
+        "title": "👐 存储目录",
+        "icon": "$(folder-opened)"
+      },
+      {
         "command": "httpClient.createFolder",
         "title": "➕ 创建目录",
         "icon": "$(new-folder)"
@@ -82,9 +87,14 @@
     "menus": {
       "view/title": [
         {
+          "command": "httpClient.openStorageFolder",
+          "when": "view == httpClientDirectories",
+          "group": "navigation@1"
+        },
+        {
           "command": "httpClient.createFolder",
           "when": "view == httpClientDirectories",
-          "group": "navigation"
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
