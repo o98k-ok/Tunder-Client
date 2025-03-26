@@ -33,7 +33,8 @@ export function activate(context: vscode.ExtensionContext) {
         }
         // 打开存储目录
         const uri = vscode.Uri.file(context.globalStoragePath);
-        await vscode.commands.executeCommand('revealFileInOS', uri);
+        // 使用openExternal替代revealFileInOS，确保正确打开目录
+        await vscode.env.openExternal(uri);
         vscode.window.showInformationMessage(`已打开存储目录: ${context.globalStoragePath}`);
       } catch (error) {
         console.error('打开存储目录失败:', error);
