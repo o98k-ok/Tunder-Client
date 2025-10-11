@@ -788,8 +788,8 @@ export class HttpClientPanel {
                 const row = tbody.insertRow();
                 row.innerHTML = \`
                     <td><input type="checkbox" \${enabled ? 'checked' : ''} /></td>
-                    <td><input type="text" value="\${key}" placeholder="Key" /></td>
-                    <td><input type="text" value="\${value}" placeholder="Value" /></td>
+                    <td><input type="text" name="key" value="\${key}" placeholder="Key" /></td>
+                    <td><input type="text" name="value" value="\${value}" placeholder="Value" /></td>
                     <td><button class="delete-btn">×</button></td>
                 \`;
                 
