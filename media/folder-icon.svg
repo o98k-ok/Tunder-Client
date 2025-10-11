@@ -1,0 +1,7 @@
+<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+  <!-- 文件夹背景 -->
+  <path d="M2 4c0-1.1.9-2 2-2h4.586c.265 0 .52.105.707.293l1.414 1.414H16c1.1 0 2 .9 2 2v8c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V4z" fill="currentColor" opacity="0.8"/>
+  <!-- 文件夹顶部 -->
+  <path d="M2 6h16v8c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6z" fill="currentColor"/>
+</svg>
+
