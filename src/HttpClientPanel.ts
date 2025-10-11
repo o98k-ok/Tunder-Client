@@ -646,14 +646,35 @@ export class HttpClientPanel {
             (function() {
                 const vscode = acquireVsCodeApi();
             let bodyEditor = null; // Monaco Editor 实例
+            window.bodyEditor = null; // 全局引用供调试使用
+            
+            console.log('[Init] Script loaded');
+            console.log('[Init] Monaco URI: ${monacoUri}');
+            console.log('[Init] require available:', typeof require !== 'undefined');
             
             // 配置 Monaco Loader
-            require.config({ paths: { 'vs': '${monacoUri}/vs' }});
+            require.config({ 
+                paths: { 'vs': '${monacoUri}/vs' },
+                onError: function(err) {
+                    console.error('[Monaco] Load error:', err);
+                    console.error('[Monaco] Error type:', err.errorType);
+                    console.error('[Monaco] Module ID:', err.moduleId);
+                    alert('Monaco Editor 加载失败！\\n错误: ' + err.errorType + '\\n模块: ' + err.moduleId + '\\n\\n将使用简化编辑器。');
+                    initFallbackEditor();
+                }
+            });
             
             // 初始化 Monaco Editor
+            console.log('[Monaco] Starting require...');
             require(['vs/editor/editor.main'], function() {
+                console.log('[Monaco] Require callback invoked');
+                console.log('[Monaco] monaco object:', typeof monaco);
                 console.log('[Monaco] Initializing editor...');
-                bodyEditor = monaco.editor.create(document.getElementById('body-editor'), {
+                
+                const container = document.getElementById('body-editor');
+                console.log('[Monaco] Container:', container);
+                
+                bodyEditor = monaco.editor.create(container, {
                     value: '',
                     language: 'json',
                     theme: 'vs-dark',
@@ -669,7 +690,8 @@ export class HttpClientPanel {
                     tabSize: 2,
                     insertSpaces: true
                 });
-                console.log('[Monaco] Editor created successfully');
+                window.bodyEditor = bodyEditor; // 全局引用
+                console.log('[Monaco] Editor created successfully:', bodyEditor);
                 
                 // 自动格式化：粘贴时
                 bodyEditor.onDidPaste(() => {
@@ -800,6 +822,33 @@ export class HttpClientPanel {
             
             // 初始添加一行
             addHeaderRow('Content-Type', 'application/json');
+            
+            // 降级方案：如果 Monaco 加载失败，使用简单 textarea
+            function initFallbackEditor() {
+                console.log('[Fallback] Initializing textarea fallback...');
+                const container = document.getElementById('body-editor');
+                container.innerHTML = '<textarea id="body-fallback" style="width:100%;height:100%;padding:8px;font-family:monospace;font-size:13px;border:none;background:var(--input-bg);color:var(--input-fg);resize:none;"></textarea>';
+                
+                const textarea = document.getElementById('body-fallback');
+                bodyEditor = {
+                    getValue: () => textarea.value,
+                    setValue: (v) => { textarea.value = v; },
+                    getModel: () => ({ getLanguageId: () => 'json' })
+                };
+                window.bodyEditor = bodyEditor;
+                
+                console.log('[Fallback] Textarea editor ready');
+                bindEditorDependentEvents();
+            }
+            
+            // Monaco 加载超时检测（5秒）
+            setTimeout(() => {
+                if (!bodyEditor) {
+                    console.error('[Monaco] Load timeout! Falling back to textarea.');
+                    alert('Monaco Editor 加载超时，使用简化编辑器。');
+                    initFallbackEditor();
+                }
+            }, 5000);
             
             // ✅ 绑定依赖 bodyEditor 的事件（在 Monaco 初始化后调用）
             function bindEditorDependentEvents() {
