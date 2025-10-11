@@ -393,7 +393,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showErrorMessage('请选择一个目录');
         return;
       }
-      
+
       await importCurlCommand(folderId, curlParser, requestService, directoryTreeProvider, context.extensionUri);
     })
   );
@@ -407,11 +407,11 @@ export function activate(context: vscode.ExtensionContext) {
         directories.map(d => ({ label: d.name, id: d.id })),
         { placeHolder: '选择保存导入请求的目录' }
       );
-      
+
       if (!selected) {
         return; // 用户取消
       }
-      
+
       await importCurlCommand(selected.id, curlParser, requestService, directoryTreeProvider, context.extensionUri);
     })
   );
@@ -451,24 +451,24 @@ async function importCurlCommand(
       return null;
     }
   });
-  
+
   if (!curlInput) {
     return; // 用户取消
   }
-  
+
   try {
     // 解析cURL命令
     const parsed = curlParser.parse(curlInput);
-    
+
     // 生成请求名称
     const name = generateRequestName(parsed.method, parsed.url);
-    
+
     // 将headers数组转换为字典
     const headersDict: { [key: string]: string } = {};
     parsed.headers.forEach(h => {
       headersDict[h.key] = h.value;
     });
-    
+
     // 创建请求对象
     const request: Request = {
       id: crypto.randomUUID(),
@@ -481,19 +481,19 @@ async function importCurlCommand(
       created_at: Date.now(),
       updated_at: Date.now()
     };
-    
+
     // 保存请求
     requestService.createRequest(request);
-    
+
     // 刷新目录树
     directoryTreeProvider.refresh();
-    
+
     // 打开请求
     HttpClientPanel.createOrShow(extensionUri, request);
-    
+
     // 显示成功消息
     vscode.window.showInformationMessage('请求导入成功');
-    
+
   } catch (error: any) {
     vscode.window.showErrorMessage(
       `无法解析 cURL 命令: ${error.message}`
@@ -508,17 +508,17 @@ function generateRequestName(method: string, url: string): string {
   try {
     const urlObj = new URL(url);
     let path = urlObj.pathname;
-    
+
     // 处理根路径
     if (!path || path === '/') {
       return `${method.toUpperCase()} /`;
     }
-    
+
     // 移除尾部斜杠（除非是根路径）
     if (path.length > 1 && path.endsWith('/')) {
       path = path.slice(0, -1);
     }
-    
+
     return `${method.toUpperCase()} ${path}`;
   } catch (error) {
     // URL解析失败时的回退

@@ -49,7 +49,7 @@ export enum CurlParseErrorCode {
 export class CurlParseError extends Error {
     code: CurlParseErrorCode;
     example?: string;
-    
+
     constructor(code: CurlParseErrorCode, message: string, example?: string) {
         super(message);
         this.name = 'CurlParseError';
@@ -104,10 +104,10 @@ export class CurlParserService {
     private normalize(input: string): string {
         // Remove backslash line continuations
         let normalized = input.replace(/\\\s*\n\s*/g, ' ');
-        
+
         // Trim and collapse multiple spaces (but preserve spaces in quoted strings)
         normalized = normalized.trim();
-        
+
         return normalized;
     }
 
@@ -120,11 +120,11 @@ export class CurlParserService {
     private extractMethod(input: string): string {
         // Match -X or --request flag
         const methodMatch = input.match(/(?:^|\s)(?:-X|--request)\s+([A-Z]+)/i);
-        
+
         if (methodMatch && methodMatch[1]) {
             return methodMatch[1].toUpperCase();
         }
-        
+
         // Default to GET
         return 'GET';
     }
@@ -139,14 +139,14 @@ export class CurlParserService {
     private extractUrl(input: string): string {
         // Remove 'curl' command if present
         let cleaned = input.replace(/^\s*curl\s+/i, '');
-        
+
         // Try to find URL pattern (http:// or https://)
         const urlMatch = cleaned.match(/https?:\/\/[^\s'"]+/);
-        
+
         if (urlMatch && urlMatch[0]) {
             return urlMatch[0];
         }
-        
+
         // Try to find first non-flag argument
         const parts = cleaned.split(/\s+/);
         for (const part of parts) {
@@ -163,7 +163,7 @@ export class CurlParserService {
                 return part;
             }
         }
-        
+
         throw new CurlParseError(
             CurlParseErrorCode.NO_URL,
             'Unable to find URL in cURL command',
@@ -179,24 +179,24 @@ export class CurlParserService {
      */
     private extractHeaders(input: string): RequestHeader[] {
         const headers: RequestHeader[] = [];
-        
+
         // Match all -H or --header flags
         const headerRegex = /(?:-H|--header)\s+(['"])(.*?)\1/g;
         let match;
-        
+
         while ((match = headerRegex.exec(input)) !== null) {
             const headerValue = match[2];
-            
+
             // Parse "Key: Value" format
             const colonIndex = headerValue.indexOf(':');
             if (colonIndex > 0) {
                 const key = headerValue.substring(0, colonIndex).trim();
                 const value = headerValue.substring(colonIndex + 1).trim();
-                
+
                 headers.push({ key, value });
             }
         }
-        
+
         return headers;
     }
 
@@ -210,11 +210,11 @@ export class CurlParserService {
         // Match -d, --data, or --data-raw flags
         const bodyRegex = /(?:-d|--data|--data-raw)\s+(['"])(.*?)\1/s;
         const match = input.match(bodyRegex);
-        
+
         if (match && match[2]) {
             return this.unquote(match[2]);
         }
-        
+
         return undefined;
     }
 
