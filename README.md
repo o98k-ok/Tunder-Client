@@ -53,9 +53,21 @@
 - `-X`, `--request`: HTTP 方法
 - `-H`, `--header`: 请求头
 - `-d`, `--data`, `--data-raw`: 请求体
+- `-b`, `--cookie`: Cookies（自动转换为 Cookie 头部）
 - URL 和查询参数
 
 **注意**：不支持的选项（如 `-v`, `-k`, `-u` 等）会被自动忽略。
+
+**Cookie 示例**：
+```bash
+# 单个 cookie
+curl https://api.example.com -b "session_id=abc123"
+
+# 多个 cookies
+curl https://api.example.com \
+  -b "session_id=abc123" \
+  -b "user_pref=dark_mode"
+```
 
 ## 技术特点
 

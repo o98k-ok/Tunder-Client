@@ -86,6 +86,10 @@ export class CurlParserService {
         const url = this.extractUrl(normalized);
         const headers = this.extractHeaders(normalized);
         const body = this.extractBody(normalized);
+        const cookies = this.extractCookies(normalized);
+
+        // Merge cookies into headers
+        this.mergeCookiesIntoHeaders(cookies, headers);
 
         return {
             method,
@@ -231,6 +235,55 @@ export class CurlParserService {
             .replace(/\\'/g, "'")
             .replace(/\\"/g, '"')
             .replace(/\\\\/g, '\\');
+    }
+
+    /**
+     * Extract cookies from cURL command
+     * 
+     * @param input - Normalized cURL string
+     * @returns Array of cookie strings (name=value format)
+     */
+    private extractCookies(input: string): string[] {
+        const cookies: string[] = [];
+        
+        // Match -b or --cookie flags
+        const cookieRegex = /(?:-b|--cookie)\s+(['"])(.*?)\1/g;
+        let match;
+        
+        while ((match = cookieRegex.exec(input)) !== null) {
+            const cookieValue = match[2];
+            cookies.push(cookieValue);
+        }
+        
+        return cookies;
+    }
+
+    /**
+     * Merge cookies into headers array as Cookie header
+     * 
+     * @param cookies - Array of cookie strings
+     * @param headers - Existing headers array
+     */
+    private mergeCookiesIntoHeaders(cookies: string[], headers: RequestHeader[]): void {
+        if (cookies.length === 0) {
+            return;
+        }
+        
+        // Combine all cookies with semicolon separator
+        const cookieValue = cookies.join('; ');
+        
+        // Check if Cookie header already exists (case-insensitive)
+        const cookieHeaderIndex = headers.findIndex(
+            h => h.key.toLowerCase() === 'cookie'
+        );
+        
+        if (cookieHeaderIndex >= 0) {
+            // Merge with existing Cookie header
+            headers[cookieHeaderIndex].value += '; ' + cookieValue;
+        } else {
+            // Add new Cookie header
+            headers.push({ key: 'Cookie', value: cookieValue });
+        }
     }
 }
 
