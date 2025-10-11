@@ -202,7 +202,7 @@ export class HttpClientPanel {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'unsafe-inline' 'unsafe-eval'; worker-src ${webview.cspSource} blob:; child-src ${webview.cspSource} blob:;">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'unsafe-inline' 'unsafe-eval'; worker-src ${webview.cspSource} blob:; child-src ${webview.cspSource} blob:; font-src ${webview.cspSource} data:;">
         <title>Tunder Client</title>
         <style>
             :root {
@@ -799,11 +799,23 @@ export class HttpClientPanel {
                     const tabName = tab.getAttribute('data-tab');
                     if (!tabName) return;
                     
+                    console.log('[Tab] Switching to:', tabName);
+                    
                     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
                     
                     tab.classList.add('active');
                     document.getElementById(tabName + '-tab').classList.add('active');
+                    
+                    // 当切换到 Body 标签页时，触发 Monaco 布局更新
+                    if (tabName === 'body' && bodyEditor) {
+                        console.log('[Tab] Triggering Monaco layout update');
+                        setTimeout(() => {
+                            bodyEditor.layout();
+                        }, 100);
+                    }
+                    
+                    console.log('[Tab] Switch complete');
                 });
             });
             
