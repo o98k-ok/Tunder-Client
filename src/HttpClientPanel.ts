@@ -3,201 +3,191 @@ import axios, { CancelTokenSource } from 'axios';
 import { Request } from './models/request';
 
 export class HttpClientPanel {
-    private static readonly viewType = 'httpClient';
-    public static currentPanel: HttpClientPanel | undefined;
-    public readonly _panel: vscode.WebviewPanel;
-    private readonly _extensionUri: vscode.Uri;
-    private _disposables: vscode.Disposable[] = [];
-    private _currentRequestItem: Request | null = null;
-    private _currentRequest: CancelTokenSource | null = null;
-    public folderId: string | undefined = undefined;
+  private static readonly viewType = 'httpClient';
+  public static currentPanel: HttpClientPanel | undefined;
+  public readonly _panel: vscode.WebviewPanel;
+  private readonly _extensionUri: vscode.Uri;
+  private _disposables: vscode.Disposable[] = [];
+  private _currentRequestItem: Request | null = null;
+  private _currentRequest: CancelTokenSource | null = null;
+  public folderId: string | undefined = undefined;
 
-    public static createOrShow(extensionUri: vscode.Uri, request?: Request) {
-        const column = vscode.ViewColumn.Active;
+  public static createOrShow(extensionUri: vscode.Uri, request?: Request) {
+    const column = vscode.ViewColumn.Active;
 
-        if (HttpClientPanel.currentPanel) {
-            HttpClientPanel.currentPanel._panel.reveal(column);
-            if (request) {
-                HttpClientPanel.currentPanel.loadRequest(request);
+    if (HttpClientPanel.currentPanel) {
+      HttpClientPanel.currentPanel._panel.reveal(column);
+      if (request) {
+        HttpClientPanel.currentPanel.loadRequest(request);
+      }
+      return;
+    }
+
+    const panel = vscode.window.createWebviewPanel(
+      'httpClient',
+      'Tunder Client',
+      column,
+      {
+        enableScripts: true,
+        localResourceRoots: [
+                    vscode.Uri.joinPath(extensionUri, 'media'),
+                    vscode.Uri.joinPath(extensionUri, 'node_modules', 'monaco-editor')
+        ],
+        retainContextWhenHidden: true
+      }
+    );
+
+    HttpClientPanel.currentPanel = new HttpClientPanel(panel, extensionUri);
+    
+    if (request) {
+      HttpClientPanel.currentPanel.loadRequest(request);
+    }
+  }
+
+  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+    this._panel = panel;
+    this._extensionUri = extensionUri;
+    this._currentRequest = null;
+
+    this._update();
+
+    this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+
+    this._panel.webview.onDidReceiveMessage(
+      async (message) => {
+        switch (message.command) {
+          case 'sendRequest':
+            try {
+              if (this._currentRequest) {
+                this._currentRequest.cancel('用户取消了请求');
+                this._currentRequest = null;
+              }
+
+              const { method, url, headers, body } = message.data;
+              
+              const headersObj: Record<string, string> = {};
+              if (Array.isArray(headers)) {
+                headers.forEach(header => {
+                  if (header.key && header.key.trim()) {
+                    headersObj[header.key.trim()] = header.value || '';
+                  }
+                });
+              }
+              
+              this._currentRequest = axios.CancelToken.source();
+              
+              const response = await axios({
+                method,
+                url,
+                headers: headersObj,
+                data: body ? JSON.parse(body) : undefined,
+                validateStatus: () => true,
+                cancelToken: this._currentRequest.token
+              });
+              
+              this._currentRequest = null;
+              
+              this._panel.webview.postMessage({
+                command: 'responseReceived',
+                data: {
+                  status: response.status,
+                  statusText: response.statusText,
+                  headers: response.headers,
+                  data: response.data
+                }
+              });
+            } catch (error) {
+              console.error('请求出错:', error);
+              
+              let errorMessage = '请求失败';
+              if (axios.isCancel(error)) {
+                errorMessage = '请求已取消';
+              } else if (error instanceof Error) {
+                errorMessage = error.message;
+              }
+              
+              this._panel.webview.postMessage({
+                command: 'requestError',
+                error: errorMessage
+              });
+            } finally {
+              this._currentRequest = null;
+            }
+            return;
+
+          case 'cancelRequest':
+            if (this._currentRequest) {
+              this._currentRequest.cancel('用户取消了请求');
+              this._currentRequest = null;
+            }
+            return;
+
+          case 'loadRequest':
+            try {
+              const { id, name, url, method, headers, body, folder_id } = message.data;
+              this._panel.webview.postMessage({
+                command: 'updateRequestData',
+                data: {
+                  id,
+                  name,
+                  url,
+                  method,
+                  headers,
+                  body
+                }
+              });
+            } catch (error) {
+              console.error('加载请求数据时出错:', error);
+              vscode.window.showErrorMessage('加载请求数据失败');
+            }
+            return;
+
+          case 'getRequestData':
+            try {
+              this._panel.webview.postMessage({
+                command: 'requestDataRequested'
+              });
+            } catch (error) {
+              console.error('获取请求数据时出错:', error);
+              vscode.window.showErrorMessage('获取请求数据失败');
+            }
+            return;
+
+          case 'saveRequest':
+            try {
+              const { name, method, url, headers, body } = message.data;
+              vscode.commands.executeCommand('httpClient.saveRequest', {
+                name,
+                method,
+                url,
+                headers,
+                body
+              });
+            } catch (error) {
+              console.error('保存请求数据时出错:', error);
+              vscode.window.showErrorMessage('保存请求数据失败');
             }
             return;
         }
+      },
+      null,
+      this._disposables
+    );
+  }
 
-        const panel = vscode.window.createWebviewPanel(
-            'httpClient',
-            'Tunder Client',
-            column,
-            {
-                enableScripts: true,
-                localResourceRoots: [
-                    vscode.Uri.joinPath(extensionUri, 'media'),
-                    vscode.Uri.joinPath(extensionUri, 'node_modules', 'monaco-editor')
-                ],
-                retainContextWhenHidden: true
-            }
-        );
+  private _update() {
+    const webview = this._panel.webview;
+    this._panel.title = "Tunder Client";
+    this._panel.webview.html = this._getHtmlForWebview(webview, this._extensionUri);
+  }
 
-        HttpClientPanel.currentPanel = new HttpClientPanel(panel, extensionUri);
-
-        if (request) {
-            HttpClientPanel.currentPanel.loadRequest(request);
-        }
-    }
-
-    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
-        this._panel = panel;
-        this._extensionUri = extensionUri;
-        this._currentRequest = null;
-
-        this._update();
-
-        this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
-
-        this._panel.webview.onDidReceiveMessage(
-            async (message) => {
-                console.log('收到来自WebView的消息:', message);
-
-                switch (message.command) {
-                    case 'sendRequest':
-                        try {
-                            if (this._currentRequest) {
-                                this._currentRequest.cancel('用户取消了请求');
-                                this._currentRequest = null;
-                            }
-
-                            const { method, url, headers, body } = message.data;
-                            console.log('发送请求:', { method, url, headers });
-
-                            const headersObj: Record<string, string> = {};
-                            if (Array.isArray(headers)) {
-                                headers.forEach(header => {
-                                    if (header.key && header.key.trim()) {
-                                        headersObj[header.key.trim()] = header.value || '';
-                                    }
-                                });
-                            }
-
-                            console.log('处理后的headers:', headersObj);
-
-                            this._currentRequest = axios.CancelToken.source();
-
-                            const response = await axios({
-                                method,
-                                url,
-                                headers: headersObj,
-                                data: body ? JSON.parse(body) : undefined,
-                                validateStatus: () => true,
-                                cancelToken: this._currentRequest.token
-                            });
-
-                            this._currentRequest = null;
-
-                            console.log('收到响应:', {
-                                status: response.status,
-                                statusText: response.statusText
-                            });
-
-                            this._panel.webview.postMessage({
-                                command: 'responseReceived',
-                                data: {
-                                    status: response.status,
-                                    statusText: response.statusText,
-                                    headers: response.headers,
-                                    data: response.data
-                                }
-                            });
-                        } catch (error) {
-                            console.error('请求出错:', error);
-
-                            let errorMessage = '请求失败';
-                            if (axios.isCancel(error)) {
-                                errorMessage = '请求已取消';
-                            } else if (error instanceof Error) {
-                                errorMessage = error.message;
-                            }
-
-                            this._panel.webview.postMessage({
-                                command: 'requestError',
-                                error: errorMessage
-                            });
-                        } finally {
-                            this._currentRequest = null;
-                        }
-                        return;
-
-                    case 'cancelRequest':
-                        if (this._currentRequest) {
-                            this._currentRequest.cancel('用户取消了请求');
-                            this._currentRequest = null;
-                        }
-                        return;
-
-                    case 'loadRequest':
-                        try {
-                            const { id, name, url, method, headers, body, folder_id } = message.data;
-                            this._panel.webview.postMessage({
-                                command: 'updateRequestData',
-                                data: {
-                                    id,
-                                    name,
-                                    url,
-                                    method,
-                                    headers,
-                                    body
-                                }
-                            });
-                        } catch (error) {
-                            console.error('加载请求数据时出错:', error);
-                            vscode.window.showErrorMessage('加载请求数据失败');
-                        }
-                        return;
-
-                    case 'getRequestData':
-                        try {
-                            this._panel.webview.postMessage({
-                                command: 'requestDataRequested'
-                            });
-                        } catch (error) {
-                            console.error('获取请求数据时出错:', error);
-                            vscode.window.showErrorMessage('获取请求数据失败');
-                        }
-                        return;
-
-                    case 'saveRequest':
-                        try {
-                            const { name, method, url, headers, body } = message.data;
-                            vscode.commands.executeCommand('httpClient.saveRequest', {
-                                name,
-                                method,
-                                url,
-                                headers,
-                                body
-                            });
-                        } catch (error) {
-                            console.error('保存请求数据时出错:', error);
-                            vscode.window.showErrorMessage('保存请求数据失败');
-                        }
-                        return;
-                }
-            },
-            null,
-            this._disposables
-        );
-    }
-
-    private _update() {
-        const webview = this._panel.webview;
-        this._panel.title = "Tunder Client";
-        this._panel.webview.html = this._getHtmlForWebview(webview, this._extensionUri);
-    }
-
-    private _getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): string {
+  private _getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): string {
         // Monaco Editor URI
         const monacoUri = webview.asWebviewUri(
             vscode.Uri.joinPath(extensionUri, 'node_modules', 'monaco-editor', 'min')
         );
 
-        return `<!DOCTYPE html>
+    return `<!DOCTYPE html>
     <html lang="zh">
     <head>
         <meta charset="UTF-8">
@@ -648,11 +638,7 @@ export class HttpClientPanel {
             (function() {
                 const vscode = acquireVsCodeApi();
             let bodyEditor = null; // Monaco Editor 实例
-            window.bodyEditor = null; // 全局引用供调试使用
-            
-            console.log('[Init] Script loaded');
-            console.log('[Init] Monaco URI: ${monacoUri}');
-            console.log('[Init] require available:', typeof require !== 'undefined');
+            window.bodyEditor = null; // 全局引用
             
             // 配置 Monaco Loader
             require.config({ 
@@ -667,16 +653,8 @@ export class HttpClientPanel {
             });
             
             // 初始化 Monaco Editor
-            console.log('[Monaco] Starting require...');
             require(['vs/editor/editor.main'], function() {
-                console.log('[Monaco] Require callback invoked');
-                console.log('[Monaco] monaco object:', typeof monaco);
-                console.log('[Monaco] Initializing editor...');
-                
-                const container = document.getElementById('body-editor');
-                console.log('[Monaco] Container:', container);
-                
-                bodyEditor = monaco.editor.create(container, {
+                bodyEditor = monaco.editor.create(document.getElementById('body-editor'), {
                     value: '',
                     language: 'json',
                     theme: 'vs-dark',
@@ -693,7 +671,6 @@ export class HttpClientPanel {
                     insertSpaces: true
                 });
                 window.bodyEditor = bodyEditor; // 全局引用
-                console.log('[Monaco] Editor created successfully:', bodyEditor);
                 
                 // 自动格式化：粘贴时
                 bodyEditor.onDidPaste(() => {
@@ -730,9 +707,8 @@ export class HttpClientPanel {
                     updateEditorLanguage();
                 });
                 
-                // ✅ 绑定依赖 bodyEditor 的事件（必须在 Monaco 初始化后）
+                // 绑定依赖 bodyEditor 的事件（必须在 Monaco 初始化后）
                 bindEditorDependentEvents();
-                console.log('[Monaco] All events bound');
             });
             
             // 语言检测函数
@@ -798,8 +774,6 @@ export class HttpClientPanel {
                     const tabName = tab.getAttribute('data-tab');
                     if (!tabName) return;
                     
-                    console.log('[Tab] Switching to:', tabName);
-                    
                     // 只操作 Headers/Body 的标签页容器，不影响 Response 容器
                     const mainContainer = tab.closest('.tabs-container');
                     
@@ -813,13 +787,8 @@ export class HttpClientPanel {
                     
                     // 当切换到 Body 标签页时，触发 Monaco 布局更新
                     if (tabName === 'body' && bodyEditor) {
-                        console.log('[Tab] Triggering Monaco layout update');
-                        setTimeout(() => {
-                            bodyEditor.layout();
-                        }, 100);
+                        setTimeout(() => bodyEditor.layout(), 100);
                     }
-                    
-                    console.log('[Tab] Switch complete');
                 });
             });
             
@@ -844,7 +813,6 @@ export class HttpClientPanel {
             
             // 降级方案：如果 Monaco 加载失败，使用简单 textarea
             function initFallbackEditor() {
-                console.log('[Fallback] Initializing textarea fallback...');
                 const container = document.getElementById('body-editor');
                 container.innerHTML = '<textarea id="body-fallback" style="width:100%;height:100%;padding:8px;font-family:monospace;font-size:13px;border:none;background:var(--input-bg);color:var(--input-fg);resize:none;"></textarea>';
                 
@@ -855,8 +823,6 @@ export class HttpClientPanel {
                     getModel: () => ({ getLanguageId: () => 'json' })
                 };
                 window.bodyEditor = bodyEditor;
-                
-                console.log('[Fallback] Textarea editor ready');
                 bindEditorDependentEvents();
             }
             
@@ -869,16 +835,11 @@ export class HttpClientPanel {
                 }
             }, 5000);
             
-            // ✅ 绑定依赖 bodyEditor 的事件（在 Monaco 初始化后调用）
+            // 绑定依赖 bodyEditor 的事件（在 Monaco 初始化后调用）
             function bindEditorDependentEvents() {
-                console.log('[Events] Binding editor-dependent events...');
-                
                 // 发送请求
                 document.getElementById('sendBtn').addEventListener('click', () => {
-                    console.log('[Send] Button clicked');
-                    
                     if (!bodyEditor) {
-                        console.error('[Send] Editor not initialized!');
                         alert('Editor is still loading, please try again.');
                         return;
                     }
@@ -886,10 +847,6 @@ export class HttpClientPanel {
                     const method = document.getElementById('method').value;
                     const url = document.getElementById('url').value;
                     const body = bodyEditor.getValue();
-                    
-                    console.log('[Send] Method:', method);
-                    console.log('[Send] URL:', url);
-                    console.log('[Send] Body:', body);
                         
                     const headers = [];
                     document.querySelectorAll('#headers-body tr').forEach(row => {
@@ -905,8 +862,6 @@ export class HttpClientPanel {
                         }
                     });
                     
-                    console.log('[Send] Headers:', headers);
-                    
                     const btn = document.getElementById('sendBtn');
                     btn.classList.add('loading');
                     btn.disabled = true;
@@ -916,8 +871,6 @@ export class HttpClientPanel {
                         data: { method, url, headers, body }
                     });
                 });
-
-                console.log('[Events] Send button bound');
             }
 
             // 格式化 JSON
@@ -943,38 +896,23 @@ export class HttpClientPanel {
             // 处理响应
                 window.addEventListener('message', event => {
                     const message = event.data;
-                console.log('[Message] Received:', message.command, message);
                 
                 if (message.command === 'responseReceived') {
                             const { status, statusText, headers, data } = message.data;
                     
-                    console.log('[Response] Status:', status, statusText);
-                    console.log('[Response] Data type:', typeof data);
-                    console.log('[Response] Data:', data);
-                    
                     const btn = document.getElementById('sendBtn');
-                    console.log('[Response] Send button:', btn);
                     btn.classList.remove('loading');
                     btn.disabled = false;
                     
                     const container = document.getElementById('response-container');
-                    console.log('[Response] Container:', container);
                     container.style.display = 'flex';
                     
                     const badge = document.getElementById('status-badge');
-                    console.log('[Response] Badge:', badge);
                     badge.textContent = status + ' ' + statusText;
                     badge.className = 'status-badge ' + (status < 300 ? 'status-success' : status < 400 ? 'status-info' : 'status-error');
                     
                     const responseBody = document.getElementById('response-body');
-                    console.log('[Response] Body element:', responseBody);
-                    
-                    const formattedData = formatJSON(data);
-                    console.log('[Response] Formatted data length:', formattedData.length);
-                    
-                    responseBody.innerHTML = formattedData;
-                    
-                    console.log('[Response] ✅ UI updated successfully');
+                    responseBody.innerHTML = formatJSON(data);
                     
                 } else if (message.command === 'requestError') {
                     const btn = document.getElementById('sendBtn');
@@ -1013,92 +951,92 @@ export class HttpClientPanel {
         </script>
     </body>
 </html>`;
+  }
+
+  public dispose() {
+    HttpClientPanel.currentPanel = undefined;
+    
+    // 取消当前请求（如果有）
+    if (this._currentRequest) {
+      this._currentRequest.cancel('面板已关闭');
+      this._currentRequest = null;
     }
 
-    public dispose() {
-        HttpClientPanel.currentPanel = undefined;
-
-        // 取消当前请求（如果有）
-        if (this._currentRequest) {
-            this._currentRequest.cancel('面板已关闭');
-            this._currentRequest = null;
-        }
-
-        // 清理所有disposables
-        while (this._disposables.length) {
-            const disposable = this._disposables.pop();
-            if (disposable) {
-                disposable.dispose();
-            }
-        }
+    // 清理所有disposables
+    while (this._disposables.length) {
+      const disposable = this._disposables.pop();
+      if (disposable) {
+        disposable.dispose();
+      }
     }
+  }
 
-    /**
-     * 获取当前加载的请求项
-     */
-    public getCurrentRequestItem(): Request | null {
-        return this._currentRequestItem;
+  /**
+   * 获取当前加载的请求项
+   */
+  public getCurrentRequestItem(): Request | null {
+    return this._currentRequestItem;
+  }
+
+  /**
+   * 加载请求到面板
+   */
+  public loadRequest(request: Request): void {
+    console.log('加载请求到面板:', request);
+    
+    if (!request || !request.id) {
+      console.error('无效的请求对象:', request);
+      vscode.window.showErrorMessage('无效的请求');
+      return;
     }
-
-    /**
-     * 加载请求到面板
-     */
-    public loadRequest(request: Request): void {
-        console.log('加载请求到面板:', request);
-
-        if (!request || !request.id) {
-            console.error('无效的请求对象:', request);
-            vscode.window.showErrorMessage('无效的请求');
-            return;
-        }
-
-        // 切换焦点到请求面板
-        this._panel.reveal(vscode.ViewColumn.Active);
-
-        // 存储当前请求对象的引用
-        this._currentRequestItem = request;
-
-        // 如果请求有文件夹ID，保存它
-        if (request.folder_id) {
-            this.folderId = request.folder_id;
-        }
-
-        // 转换headers格式
+    
+    // 切换焦点到请求面板
+    this._panel.reveal(vscode.ViewColumn.Active);
+    
+    // 存储当前请求对象的引用
+    this._currentRequestItem = request;
+    
+    // 如果请求有文件夹ID，保存它
+    if (request.folder_id) {
+      this.folderId = request.folder_id;
+    }
+    
+    // 转换headers格式
         let formattedHeaders: Array<{ key: string, value: string }> = [];
-        if (request.headers) {
-            if (Array.isArray(request.headers)) {
+    if (request.headers) {
+      if (Array.isArray(request.headers)) {
                 formattedHeaders = request.headers as Array<{ key: string, value: string }>;
-            } else {
-                formattedHeaders = Object.entries(request.headers).map(([key, value]) => ({ key, value }));
-            }
-        }
-
-        console.log('发送到webview的请求数据:', {
-            id: request.id,
-            name: request.name,
-            url: request.url || '',
-            method: request.method || 'GET',
-            headers: formattedHeaders,
-            body: request.body || ''
-        });
-
-        // 向webview发送加载请求的消息
-        this._panel.webview.postMessage({
-            command: 'updateRequestData',
-            data: {
-                id: request.id,
-                name: request.name,
-                url: request.url || '',
-                method: request.method || 'GET',
-                headers: formattedHeaders,
-                body: request.body || '',
-                folder_id: request.folder_id
-            }
-        });
-
-        // 重置响应区域
-        this._panel.webview.postMessage({
-            command: 'resetResponse'
-        });
+      } else {
+        formattedHeaders = Object.entries(request.headers).map(([key, value]) => ({ key, value }));
+      }
     }
+    
+    console.log('发送到webview的请求数据:', {
+      id: request.id,
+      name: request.name,
+      url: request.url || '',
+      method: request.method || 'GET',
+      headers: formattedHeaders,
+      body: request.body || ''
+    });
+    
+    // 向webview发送加载请求的消息
+    this._panel.webview.postMessage({
+      command: 'updateRequestData',
+      data: {
+        id: request.id,
+        name: request.name,
+        url: request.url || '',
+        method: request.method || 'GET',
+        headers: formattedHeaders,
+        body: request.body || '',
+        folder_id: request.folder_id
+      }
+    });
+    
+    // 重置响应区域
+    this._panel.webview.postMessage({
+      command: 'resetResponse'
+    });
+  }
 }
