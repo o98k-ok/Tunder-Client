@@ -8,18 +8,18 @@ import { RequestService } from './services/requestService';
 export function activate(context: vscode.ExtensionContext) {
   // 创建directoryService实例
   const directoryService = new DirectoryService(context);
-  
+
   // 创建requestService实例
   const requestService = new RequestService(context);
-  
+
   // 打印存储路径和数据
   console.log('存储路径:', context.globalStoragePath);
   console.log('所有文件夹:', directoryService.getAllDirectories());
   console.log('所有请求:', requestService.getAllRequests());
-  
+
   // 创建目录树视图提供者
   const directoryTreeProvider = new DirectoryTreeProvider(directoryService, requestService);
-  
+
   // 注册目录树视图
   vscode.window.registerTreeDataProvider('httpClientDirectories', directoryTreeProvider);
 
@@ -50,7 +50,7 @@ export function activate(context: vscode.ExtensionContext) {
         prompt: '输入文件夹名称',
         placeHolder: '新文件夹'
       });
-      
+
       if (folderName) {
         const created = directoryService.createDirectory(folderName);
         if (created) {
@@ -67,13 +67,13 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('httpClient.editFolder', async (item) => {
       if (!item) return;
-      
+
       const newName = await vscode.window.showInputBox({
         prompt: '输入新的文件夹名称',
         placeHolder: item.label,
         value: item.label
       });
-      
+
       if (newName) {
         const updated = directoryService.updateDirectory(item.id, newName);
         if (updated) {
@@ -90,13 +90,13 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('httpClient.deleteFolder', async (item) => {
       if (!item) return;
-      
+
       const answer = await vscode.window.showWarningMessage(
         `确定要删除文件夹 "${item.label}" 吗？`,
         { modal: true },
         '确定'
       );
-      
+
       if (answer === '确定') {
         const deleted = directoryService.deleteDirectory(item.id);
         if (deleted) {
@@ -114,18 +114,18 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('httpClient.createRequest', async (item) => {
       const folderName = item ? item.label : '根目录';
       const folderId = item ? item.id : undefined;
-      
+
       const requestName = await vscode.window.showInputBox({
         prompt: `在 ${folderName} 下创建请求`,
         placeHolder: '新建请求'
       });
-      
+
       if (requestName) {
         const request = requestService.createRequest({
           name: requestName,
           folder_id: folderId
         });
-        
+
         if (request) {
           directoryTreeProvider.refresh();
           vscode.window.showInformationMessage(`请求 "${requestName}" 创建成功`);
@@ -140,13 +140,13 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('httpClient.editRequest', async (item) => {
       if (!item) return;
-      
+
       const newName = await vscode.window.showInputBox({
         prompt: '输入新的请求名称',
         placeHolder: item.label,
         value: item.label
       });
-      
+
       if (newName) {
         const updated = requestService.updateRequest(item.id, { name: newName });
         if (updated) {
@@ -163,13 +163,13 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('httpClient.deleteRequest', async (item) => {
       if (!item) return;
-      
+
       const answer = await vscode.window.showWarningMessage(
         `确定要删除请求 "${item.label}" 吗？`,
         { modal: true },
         '确定'
       );
-      
+
       if (answer === '确定') {
         const deleted = requestService.deleteRequest(item.id);
         if (deleted) {
@@ -186,7 +186,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('httpClient.copyRequest', async (item) => {
       if (!item) return;
-      
+
       const newRequest = requestService.copyRequest(item.id);
       if (newRequest) {
         directoryTreeProvider.refresh();
@@ -201,7 +201,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('httpClient.loadRequest', async (item) => {
       if (!item) return;
-      
+
       const request = requestService.getRequest(item.id);
       if (!request) {
         vscode.window.showErrorMessage('加载请求失败');
@@ -230,7 +230,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showErrorMessage('没有请求数据');
         return;
       }
-      
+
       console.log('保存请求:', {
         requestData,
         currentRequest: HttpClientPanel.currentPanel?.getCurrentRequestItem(),
@@ -238,13 +238,13 @@ export function activate(context: vscode.ExtensionContext) {
         allFolders: directoryService.getAllDirectories(),
         allRequests: requestService.getAllRequests()
       });
-      
+
       // 获取当前请求对象
       const currentRequest = HttpClientPanel.currentPanel?.getCurrentRequestItem();
-      
+
       if (currentRequest) {
         console.log('更新现有请求:', currentRequest.id);
-        
+
         // 更新现有请求
         const updated = requestService.updateRequest(currentRequest.id, {
           name: currentRequest.name,
@@ -263,7 +263,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
         return; // 添加return，防止继续执行创建新请求的逻辑
       }
-      
+
       // 获取当前文件夹
       const folderId = HttpClientPanel.currentPanel?.folderId || '';
       console.log('创建新请求的文件夹信息:', {
@@ -271,13 +271,13 @@ export function activate(context: vscode.ExtensionContext) {
         allFolders: directoryService.getAllDirectories(),
         currentFolder: folderId ? directoryService.getDirectory(folderId) : null
       });
-      
+
       let folderToUse = null;
-      
+
       if (folderId) {
         folderToUse = directoryService.getDirectory(folderId);
       }
-      
+
       // 如果没有找到文件夹，使用默认文件夹或创建一个新文件夹
       if (!folderToUse) {
         const directories = directoryService.getAllDirectories();
@@ -291,7 +291,7 @@ export function activate(context: vscode.ExtensionContext) {
           }
         }
       }
-      
+
       // 创建新请求
       const request = requestService.createRequest({
         name: requestData.name,
@@ -302,17 +302,79 @@ export function activate(context: vscode.ExtensionContext) {
         body: requestData.body || '',
         updated_at: Date.now()
       });
-      
+
       if (request) {
         vscode.window.showInformationMessage(`请求 "${requestData.name}" 已保存`);
         directoryTreeProvider.refresh();
-        
+
         // 更新当前请求引用
         if (HttpClientPanel.currentPanel) {
           HttpClientPanel.currentPanel.loadRequest(request);
         }
       } else {
         vscode.window.showErrorMessage('保存请求失败');
+      }
+    })
+  );
+
+  // 注册自动保存请求命令（用于实时自动保存）
+  context.subscriptions.push(
+    vscode.commands.registerCommand('httpClient.autoSaveRequest', async (requestData: any) => {
+      // 安全检查：自动保存只用于已保存的请求
+      if (!requestData || !requestData.id) {
+        console.error('[AutoSave] 缺少请求 ID，跳过自动保存');
+        return;
+      }
+
+      console.log('[AutoSave] 开始自动保存:', requestData.id);
+
+      try {
+        // 调用 RequestService 更新请求
+        const updated = requestService.updateRequest(requestData.id, {
+          name: requestData.name,
+          url: requestData.url,
+          method: requestData.method,
+          headers: requestData.headers || [],
+          body: requestData.body || '',
+          updated_at: Date.now()
+        });
+
+        if (updated) {
+          console.log('[AutoSave] 保存成功');
+
+          // 静默刷新目录树（不展开/折叠）
+          directoryTreeProvider.refresh();
+
+          // 通知 Webview 保存成功
+          if (HttpClientPanel.currentPanel) {
+            HttpClientPanel.currentPanel['_panel'].webview.postMessage({
+              command: 'updateSaveStatus',
+              status: 'saved'
+            });
+          }
+        } else {
+          console.error('[AutoSave] 保存失败：请求不存在');
+
+          // 通知 Webview 保存失败
+          if (HttpClientPanel.currentPanel) {
+            HttpClientPanel.currentPanel['_panel'].webview.postMessage({
+              command: 'updateSaveStatus',
+              status: 'error',
+              message: '请求不存在或已被删除'
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[AutoSave] 保存异常:', error);
+
+        // 通知 Webview 保存失败
+        if (HttpClientPanel.currentPanel) {
+          HttpClientPanel.currentPanel['_panel'].webview.postMessage({
+            command: 'updateSaveStatus',
+            status: 'error',
+            message: error instanceof Error ? error.message : '保存失败'
+          });
+        }
       }
     })
   );

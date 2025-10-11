@@ -168,6 +168,15 @@ export class HttpClientPanel {
                             vscode.window.showErrorMessage('保存请求数据失败');
                         }
                         return;
+
+                    case 'autoSaveRequest':
+                        try {
+                            // 调用自动保存命令
+                            vscode.commands.executeCommand('httpClient.autoSaveRequest', message.data);
+                        } catch (error) {
+                            console.error('自动保存请求时出错:', error);
+                        }
+                        return;
                 }
             },
             null,
@@ -232,9 +241,9 @@ export class HttpClientPanel {
         
         * {
             box-sizing: border-box;
-        }
-        
-        body {
+            }
+            
+            body {
                 margin: 0;
             padding: 0;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -248,7 +257,7 @@ export class HttpClientPanel {
         .main-container {
             display: flex;
             flex-direction: column;
-            height: 100vh;
+                height: 100vh;
             padding: var(--spacing);
                 gap: var(--spacing);
         }
@@ -266,7 +275,7 @@ export class HttpClientPanel {
             border: 1px solid var(--input-border);
             background: var(--input-bg);
             color: var(--input-fg);
-            border-radius: var(--border-radius);
+                border-radius: var(--border-radius);
             font-size: 13px;
             cursor: pointer;
         }
@@ -294,7 +303,7 @@ export class HttpClientPanel {
             border: none;
             border-radius: var(--border-radius);
             font-size: 13px;
-            font-weight: 500;
+                font-weight: 500;
             cursor: pointer;
             transition: background 0.2s;
         }
@@ -322,6 +331,61 @@ export class HttpClientPanel {
         
         @keyframes spin {
             to { transform: rotate(360deg); }
+        }
+        
+        /* 保存状态指示器 */
+        .save-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            padding: 4px 10px;
+                border-radius: var(--border-radius);
+            white-space: nowrap;
+            margin-left: 12px;
+            transition: all 0.2s ease;
+        }
+        
+        .save-indicator.hidden {
+            display: none;
+        }
+        
+        .save-indicator.saved {
+            color: var(--vscode-testing-iconPassed);
+            background: rgba(115, 191, 105, 0.15);
+        }
+        
+        .save-indicator.saved .icon::before {
+            content: '✓';
+        }
+        
+        .save-indicator.saving {
+            color: var(--vscode-testing-iconQueued);
+            background: rgba(232, 164, 52, 0.15);
+        }
+        
+        .save-indicator.saving .icon::before {
+            content: '⏳';
+        }
+        
+        .save-indicator.unsaved {
+            color: var(--vscode-descriptionForeground);
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--border-color);
+        }
+        
+        .save-indicator.unsaved .icon::before {
+            content: '●';
+            font-size: 10px;
+        }
+        
+        .save-indicator.error {
+            color: var(--vscode-testing-iconFailed);
+            background: rgba(244, 71, 71, 0.15);
+        }
+        
+        .save-indicator.error .icon::before {
+            content: '✗';
         }
         
         /* 标签页容器 */
@@ -582,6 +646,10 @@ export class HttpClientPanel {
                     </select>
             <input type="text" class="url-input" id="url" placeholder="Enter request URL" value="">
             <button class="send-button" id="sendBtn">Send</button>
+            <div class="save-indicator hidden" id="save-indicator">
+                <span class="icon"></span>
+                <span class="text">已保存</span>
+            </div>
                 </div>
 
         <!-- 标签页容器 -->
@@ -638,7 +706,98 @@ export class HttpClientPanel {
             (function() {
                 const vscode = acquireVsCodeApi();
             let bodyEditor = null; // Monaco Editor 实例
-            window.bodyEditor = null; // 全局引用
+            let currentRequest = null; // 当前请求对象
+            
+            // 防抖函数
+            function debounce(func, delay) {
+                let timeoutId;
+                return function(...args) {
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                    }
+                    timeoutId = setTimeout(() => {
+                        func.apply(this, args);
+                    }, delay);
+                };
+            }
+            
+            // 自动保存函数
+            function autoSave() {
+                // 关键判断：只有已保存的请求才自动保存
+                if (!currentRequest || !currentRequest.id) {
+                    console.log('[AutoSave] 跳过：新建请求不自动保存');
+                    return;
+                }
+                
+                console.log('[AutoSave] 触发自动保存:', currentRequest.id);
+                updateSaveIndicator('saving');
+                
+                // 收集表单数据
+                const requestData = {
+                    id: currentRequest.id,
+                    name: currentRequest.name || '',
+                    url: document.getElementById('url')?.value || '',
+                    method: document.getElementById('method')?.value || 'GET',
+                    headers: getHeadersArray(),
+                    body: bodyEditor ? bodyEditor.getValue() : ''
+                };
+                
+                // 发送自动保存消息
+                vscode.postMessage({
+                    command: 'autoSaveRequest',
+                    data: requestData
+                });
+            }
+            
+            // 创建防抖保存函数（500ms）
+            const debouncedAutoSave = debounce(autoSave, 500);
+            
+            // 更新保存状态指示器
+            function updateSaveIndicator(status, message) {
+                const indicator = document.getElementById('save-indicator');
+                if (!indicator) return;
+
+                // 只对已保存请求显示指示器
+                if (!currentRequest || !currentRequest.id) {
+                    indicator.classList.add('hidden');
+                    return;
+                }
+                
+                indicator.classList.remove('hidden');
+                indicator.classList.remove('saved', 'saving', 'unsaved', 'error');
+                indicator.classList.add(status);
+
+                const textEl = indicator.querySelector('.text');
+                if (textEl) {
+                    const statusText = {
+                        saved: '已保存',
+                        saving: '保存中...',
+                        unsaved: '有未保存更改',
+                        error: message || '保存失败'
+                    };
+                    textEl.textContent = statusText[status];
+                }
+            }
+            
+            // 获取 Headers 数组
+            function getHeadersArray() {
+                const headers = [];
+                const rows = document.querySelectorAll('#headers-body tr');
+                rows.forEach(row => {
+                    const checkbox = row.querySelector('input[type="checkbox"]');
+                    const keyInput = row.querySelector('input[name="key"]');
+                    const valueInput = row.querySelector('input[name="value"]');
+                    
+                    if (checkbox && checkbox.checked && keyInput && valueInput) {
+                        const key = keyInput.value.trim();
+                        const value = valueInput.value.trim();
+                        if (key || value) {
+                            headers.push({ key, value });
+                        }
+                    }
+                });
+                return headers;
+            }
             
             // 配置 Monaco Loader
             require.config({ 
@@ -837,6 +996,52 @@ export class HttpClientPanel {
             
             // 绑定依赖 bodyEditor 的事件（在 Monaco 初始化后调用）
             function bindEditorDependentEvents() {
+                // 监听 URL 输入变化
+                document.getElementById('url')?.addEventListener('input', () => {
+                    if (currentRequest && currentRequest.id) {
+                        updateSaveIndicator('unsaved');
+                        debouncedAutoSave();
+                    }
+                });
+                
+                // 监听 Method 选择变化
+                document.getElementById('method')?.addEventListener('change', () => {
+                    if (currentRequest && currentRequest.id) {
+                        updateSaveIndicator('unsaved');
+                        debouncedAutoSave();
+                    }
+                });
+                
+                // 监听 Headers 表格变化（事件委托）
+                document.getElementById('headers-body')?.addEventListener('input', (e) => {
+                    if (e.target && (e.target.name === 'key' || e.target.name === 'value')) {
+                        if (currentRequest && currentRequest.id) {
+                            updateSaveIndicator('unsaved');
+                            debouncedAutoSave();
+                        }
+                    }
+                });
+                
+                // 监听 Headers checkbox 变化
+                document.getElementById('headers-body')?.addEventListener('change', (e) => {
+                    if (e.target && e.target.type === 'checkbox') {
+                        if (currentRequest && currentRequest.id) {
+                            updateSaveIndicator('unsaved');
+                            debouncedAutoSave();
+                        }
+                    }
+                });
+                
+                // 监听 Monaco Editor 内容变化
+                if (bodyEditor) {
+                    bodyEditor.onDidChangeModelContent(() => {
+                        if (currentRequest && currentRequest.id) {
+                            updateSaveIndicator('unsaved');
+                            debouncedAutoSave();
+                        }
+                    });
+                }
+                
                 // 发送请求
                 document.getElementById('sendBtn').addEventListener('click', () => {
                     if (!bodyEditor) {
@@ -930,6 +1135,9 @@ export class HttpClientPanel {
                     body.textContent = message.error;
                     
                 } else if (message.command === 'updateRequestData') {
+                    // 设置当前请求对象
+                    currentRequest = message.data;
+                    
                     const { method, url, headers, body } = message.data;
                     document.getElementById('method').value = method || 'GET';
                     document.getElementById('url').value = url || '';
@@ -944,6 +1152,22 @@ export class HttpClientPanel {
                         headers.forEach(h => addHeaderRow(h.key, h.value, true));
                     } else {
                         addHeaderRow('Content-Type', 'application/json');
+                    }
+                    
+                    // 如果是已保存请求，显示保存状态
+                    if (currentRequest && currentRequest.id) {
+                        updateSaveIndicator('saved');
+                    } else {
+                        updateSaveIndicator('unsaved');
+                    }
+                } else if (message.command === 'updateSaveStatus') {
+                    // 处理自动保存状态更新
+                    updateSaveIndicator(message.status, message.message);
+                } else if (message.command === 'resetResponse') {
+                    // 重置响应区域
+                    const container = document.getElementById('response-container');
+                    if (container) {
+                        container.style.display = 'none';
                     }
                 }
             });
