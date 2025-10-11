@@ -81,6 +81,16 @@
         "command": "httpClient.loadRequest",
         "title": "view more",
         "icon": "$(eye)"
+      },
+      {
+        "command": "httpClient.importCurl",
+        "title": "📥 导入 cURL",
+        "icon": "$(file-symlink-file)"
+      },
+      {
+        "command": "httpClient.importCurlFromToolbar",
+        "title": "📥 导入 cURL 命令",
+        "icon": "$(file-symlink-file)"
       }
     ],
     "menus": {
@@ -94,6 +104,11 @@
           "command": "httpClient.createFolder",
           "when": "view == httpClientDirectories",
           "group": "navigation@2"
+        },
+        {
+          "command": "httpClient.importCurlFromToolbar",
+          "when": "view == httpClientDirectories",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -101,6 +116,11 @@
           "command": "httpClient.createRequest",
           "when": "view == httpClientDirectories && viewItem == directory",
           "group": "inline@1"
+        },
+        {
+          "command": "httpClient.importCurl",
+          "when": "view == httpClientDirectories && viewItem == directory",
+          "group": "inline@2"
         },
         {
           "command": "httpClient.editFolder",
