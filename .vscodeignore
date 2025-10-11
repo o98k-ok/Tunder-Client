@@ -1,10 +1,48 @@
+# Build files
 .vscode/**
 .vscode-test/**
 src/**
+out/**/*.map
+
+# Source files (keep only compiled .js)
+**/*.ts
+
+# Git files
+.git/**
 .gitignore
-.yarnrc
+.gitattributes
+
+# CI/CD
+.github/**
+
+# Documentation (development only)
+.specify/**
+.cursor/**
 vsc-extension-quickstart.md
+
+# Dependencies (most should stay, but exclude dev deps source)
+**/node_modules/**/test/**
+**/node_modules/**/*.md
+**/node_modules/**/.*.yml
+**/node_modules/**/.*.yaml
+
+# Config files
+.yarnrc
+.editorconfig
+.prettierrc
+.eslintrc*
 **/tsconfig.json
-**/.eslintrc.json
+tsconfig.json
+
+# Test files
+**/test/**
+**/*.test.js
+**/*.spec.js
+
+# Old builds
+*.vsix
+
+# Misc
 **/*.map
-**/*.ts 
+.DS_Store
+**/.DS_Store 

@@ -17,9 +17,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:vscode-http-client.start",
-    "onCommand:httpClient.loadRequest",
-    "*"
+    "onView:httpClientDirectories"
   ],
   "main": "./out/extension.js",
   "contributes": {
