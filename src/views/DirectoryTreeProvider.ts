@@ -33,7 +33,7 @@ export class DirectoryTreeProvider implements vscode.TreeDataProvider<DirectoryT
         } else {
             // 子目录和请求
             const items: (DirectoryTreeItem | RequestTreeItem)[] = [];
-            
+
             // 添加子目录
             const childDirs = Array.from(this.directoryService.getAllDirectories())
                 .filter(dir => dir.parentId === element.id)
@@ -78,7 +78,7 @@ class DirectoryTreeItem extends vscode.TreeItem {
         super(label, collapsibleState);
         this.tooltip = label;
         this.contextValue = 'directory';
-        
+
         // 使用统一的文件夹图标（自适应主题颜色）
         this.iconPath = new vscode.ThemeIcon('folder');
     }
