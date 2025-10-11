@@ -641,7 +641,6 @@ export class HttpClientPanel {
                 </div>
                 <div class="response-body" id="response-body"></div>
             </div>
-            </div>
         </div>
 
         <script src="${monacoUri}/vs/loader.js"></script>
