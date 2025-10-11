@@ -18,7 +18,7 @@ export function activate(context: vscode.ExtensionContext) {
   console.log('所有请求:', requestService.getAllRequests());
 
   // 创建目录树视图提供者
-  const directoryTreeProvider = new DirectoryTreeProvider(directoryService, requestService);
+  const directoryTreeProvider = new DirectoryTreeProvider(directoryService, requestService, context.extensionUri);
 
   // 注册目录树视图
   vscode.window.registerTreeDataProvider('httpClientDirectories', directoryTreeProvider);

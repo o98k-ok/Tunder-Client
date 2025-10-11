@@ -8,8 +8,9 @@ export class DirectoryTreeProvider implements vscode.TreeDataProvider<DirectoryT
 
     constructor(
         private directoryService: DirectoryService,
-        private requestService: RequestService
-    ) {}
+        private requestService: RequestService,
+        private extensionUri: vscode.Uri
+    ) { }
 
     refresh(): void {
         this._onDidChangeTreeData.fire();
@@ -26,7 +27,8 @@ export class DirectoryTreeProvider implements vscode.TreeDataProvider<DirectoryT
             return rootDirs.map(dir => new DirectoryTreeItem(
                 dir.name,
                 dir.id,
-                vscode.TreeItemCollapsibleState.Collapsed
+                vscode.TreeItemCollapsibleState.Collapsed,
+                this.extensionUri
             ));
         } else {
             // 子目录和请求
@@ -40,7 +42,8 @@ export class DirectoryTreeProvider implements vscode.TreeDataProvider<DirectoryT
             items.push(...childDirs.map(dir => new DirectoryTreeItem(
                 dir.name,
                 dir.id,
-                vscode.TreeItemCollapsibleState.Collapsed
+                vscode.TreeItemCollapsibleState.Collapsed,
+                this.extensionUri
             )));
 
             // 添加请求
@@ -48,7 +51,8 @@ export class DirectoryTreeProvider implements vscode.TreeDataProvider<DirectoryT
             items.push(...requests.map(request => new RequestTreeItem(
                 request.name,
                 request.id,
-                request.method
+                request.method,
+                this.extensionUri
             )));
 
             return items;
@@ -56,20 +60,27 @@ export class DirectoryTreeProvider implements vscode.TreeDataProvider<DirectoryT
     }
 }
 
+/**
+ * 获取方法标签 SVG 图标路径
+ */
+function getMethodBadgeIcon(method: string, extensionUri: vscode.Uri): vscode.Uri {
+    const methodLower = method.toLowerCase();
+    return vscode.Uri.joinPath(extensionUri, 'media', 'method-badges', `${methodLower}.svg`);
+}
+
 class DirectoryTreeItem extends vscode.TreeItem {
     constructor(
         public readonly label: string,
         public readonly id: string,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState
+        public readonly collapsibleState: vscode.TreeItemCollapsibleState,
+        extensionUri: vscode.Uri
     ) {
         super(label, collapsibleState);
         this.tooltip = label;
         this.contextValue = 'directory';
         
-        const colorOptions = ['blue', 'green', 'orange', 'red', 'yellow'];
-        const colorIndex = parseInt(this.id, 10) % colorOptions.length;
-        const selectedColor = `charts.${colorOptions[colorIndex]}`;
-        this.iconPath = new vscode.ThemeIcon('folder', new vscode.ThemeColor(selectedColor));
+        // 使用统一的文件夹图标（自适应主题颜色）
+        this.iconPath = new vscode.ThemeIcon('folder');
     }
 }
 
@@ -77,39 +88,15 @@ class RequestTreeItem extends vscode.TreeItem {
     constructor(
         public readonly label: string,
         public readonly id: string,
-        public readonly method: string
+        public readonly method: string,
+        extensionUri: vscode.Uri
     ) {
         super(label, vscode.TreeItemCollapsibleState.None);
         this.tooltip = `${method} ${label}`;
         this.contextValue = 'request';
 
-        // 根据方法类型设置不同的颜色
-        let color: string;
-        switch (method.toUpperCase()) {
-            case 'GET':
-                color = 'charts.blue';
-                break;
-            case 'POST':
-                color = 'charts.green';
-                break;
-            case 'PUT':
-                color = 'charts.orange';
-                break;
-            case 'DELETE':
-                color = 'charts.red';
-                break;
-            case 'PATCH':
-                color = 'charts.yellow';
-                break;
-            default:
-                color = 'foreground';
-        }
-
-        // 设置图标和颜色
-        this.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor(color));
-        
-        // 设置方法名称作为描述
-        this.description = `${method}`;
+        // 使用 SVG 方法标签图标
+        this.iconPath = getMethodBadgeIcon(method, extensionUri);
 
         // 设置命令
         this.command = {
