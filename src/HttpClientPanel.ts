@@ -924,28 +924,38 @@ export class HttpClientPanel {
             // 处理响应
                 window.addEventListener('message', event => {
                     const message = event.data;
-                console.log('Received message:', message);
+                console.log('[Message] Received:', message.command, message);
                 
                 if (message.command === 'responseReceived') {
                     const { status, statusText, headers, data } = message.data;
                     
-                    console.log('Response received:', status, statusText);
+                    console.log('[Response] Status:', status, statusText);
+                    console.log('[Response] Data type:', typeof data);
+                    console.log('[Response] Data:', data);
                     
                     const btn = document.getElementById('sendBtn');
+                    console.log('[Response] Send button:', btn);
                     btn.classList.remove('loading');
                     btn.disabled = false;
                     
                     const container = document.getElementById('response-container');
+                    console.log('[Response] Container:', container);
                     container.style.display = 'flex';
                     
                     const badge = document.getElementById('status-badge');
+                    console.log('[Response] Badge:', badge);
                     badge.textContent = status + ' ' + statusText;
                     badge.className = 'status-badge ' + (status < 300 ? 'status-success' : status < 400 ? 'status-info' : 'status-error');
                     
-                    const body = document.getElementById('response-body');
-                    body.innerHTML = formatJSON(data);
+                    const responseBody = document.getElementById('response-body');
+                    console.log('[Response] Body element:', responseBody);
                     
-                    console.log('UI updated');
+                    const formattedData = formatJSON(data);
+                    console.log('[Response] Formatted data length:', formattedData.length);
+                    
+                    responseBody.innerHTML = formattedData;
+                    
+                    console.log('[Response] ✅ UI updated successfully');
                     
                 } else if (message.command === 'requestError') {
                     const btn = document.getElementById('sendBtn');
