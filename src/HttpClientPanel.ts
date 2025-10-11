@@ -750,11 +750,14 @@ export class HttpClientPanel {
             }
             
             // 处理响应
-                window.addEventListener('message', event => {
-                    const message = event.data;
+            window.addEventListener('message', event => {
+                const message = event.data;
+                console.log('Received message:', message);
                 
                 if (message.command === 'responseReceived') {
                     const { status, statusText, headers, data } = message.data;
+                    
+                    console.log('Response received:', status, statusText);
                     
                     const btn = document.getElementById('sendBtn');
                     btn.classList.remove('loading');
@@ -764,11 +767,13 @@ export class HttpClientPanel {
                     container.style.display = 'flex';
                     
                     const badge = document.getElementById('status-badge');
-                    badge.textContent = \`\${status} \${statusText}\`;
+                    badge.textContent = status + ' ' + statusText;
                     badge.className = 'status-badge ' + (status < 300 ? 'status-success' : status < 400 ? 'status-info' : 'status-error');
                     
                     const body = document.getElementById('response-body');
                     body.innerHTML = formatJSON(data);
+                    
+                    console.log('UI updated');
                     
                 } else if (message.command === 'requestError') {
                     const btn = document.getElementById('sendBtn');
