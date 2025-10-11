@@ -245,16 +245,16 @@ export class CurlParserService {
      */
     private extractCookies(input: string): string[] {
         const cookies: string[] = [];
-        
+
         // Match -b or --cookie flags
         const cookieRegex = /(?:-b|--cookie)\s+(['"])(.*?)\1/g;
         let match;
-        
+
         while ((match = cookieRegex.exec(input)) !== null) {
             const cookieValue = match[2];
             cookies.push(cookieValue);
         }
-        
+
         return cookies;
     }
 
@@ -268,15 +268,15 @@ export class CurlParserService {
         if (cookies.length === 0) {
             return;
         }
-        
+
         // Combine all cookies with semicolon separator
         const cookieValue = cookies.join('; ');
-        
+
         // Check if Cookie header already exists (case-insensitive)
         const cookieHeaderIndex = headers.findIndex(
             h => h.key.toLowerCase() === 'cookie'
         );
-        
+
         if (cookieHeaderIndex >= 0) {
             // Merge with existing Cookie header
             headers[cookieHeaderIndex].value += '; ' + cookieValue;
