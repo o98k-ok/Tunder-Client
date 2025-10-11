@@ -658,6 +658,7 @@ export class HttpClientPanel {
             <div class="tabs-header">
                 <div class="tab active" data-tab="headers">Headers</div>
                 <div class="tab" data-tab="body">Body</div>
+                <div class="tab" data-tab="params">Params</div>
             </div>
             
             <!-- Headers 标签页 -->
@@ -681,8 +682,24 @@ export class HttpClientPanel {
                 <div class="body-editor">
                     <div id="body-editor" class="monaco-container"></div>
                 </div>
-                </div>
             </div>
+            
+            <!-- Params 标签页 -->
+            <div class="tab-content" id="params-tab">
+                <table class="headers-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Key</th>
+                            <th>Value</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="params-body"></tbody>
+                </table>
+                <button class="add-button" id="add-param">+ Add</button>
+            </div>
+        </div>
 
         <!-- Response 区域 -->
         <div class="tabs-container" id="response-container" style="display: none;">
@@ -948,8 +965,158 @@ export class HttpClientPanel {
                     if (tabName === 'body' && bodyEditor) {
                         setTimeout(() => bodyEditor.layout(), 100);
                     }
+                    
+                    // 当切换到 Params 标签页时，刷新参数列表
+                    if (tabName === 'params') {
+                        refreshParamsFromUrl();
+                    }
                 });
             });
+            
+            // ========== URL Params 功能 ==========
+            
+            // 解析 URL 参数
+            function parseUrlParams(url) {
+                const params = [];
+                try {
+                    const urlObj = new URL(url);
+                    const searchParams = new URLSearchParams(urlObj.search);
+                    
+                    // 支持重复键
+                    for (const [key, value] of searchParams.entries()) {
+                        params.push({ key, value });
+                    }
+                } catch (e) {
+                    // URL 无效或没有参数
+                }
+                return params;
+            }
+            
+            // 渲染参数表格
+            function renderParams(params) {
+                const tbody = document.getElementById('params-body');
+                tbody.innerHTML = '';
+                
+                if (params.length === 0) {
+                    // 显示空状态
+                    const row = tbody.insertRow();
+                    row.innerHTML = '<td colspan="4" style="text-align:center;color:var(--fg-secondary);padding:20px;">No parameters. Add one to get started.</td>';
+                } else {
+                    params.forEach((param, index) => {
+                        addParamRow(param.key, param.value, index);
+                    });
+                }
+            }
+            
+            // 添加参数行
+            function addParamRow(key = '', value = '', index = -1) {
+                const tbody = document.getElementById('params-body');
+                const row = tbody.insertRow();
+                row.dataset.paramIndex = index;
+                row.innerHTML = \`
+                    <td></td>
+                    <td><input type="text" class="param-key" value="\${key}" placeholder="Key" /></td>
+                    <td><input type="text" class="param-value" value="\${value}" placeholder="Value" /></td>
+                    <td><button class="delete-btn">×</button></td>
+                \`;
+                
+                // 绑定输入事件
+                const keyInput = row.querySelector('.param-key');
+                const valueInput = row.querySelector('.param-value');
+                
+                keyInput.addEventListener('input', debounceUrlUpdate);
+                valueInput.addEventListener('input', debounceUrlUpdate);
+                
+                // 绑定删除事件
+                row.querySelector('.delete-btn').addEventListener('click', () => {
+                    row.remove();
+                    updateUrlFromParams();
+                });
+            }
+            
+            // 从 Params 表格更新 URL
+            function updateUrlFromParams() {
+                const urlInput = document.getElementById('url');
+                const currentUrl = urlInput.value.trim();
+                
+                if (!currentUrl) return;
+                
+                try {
+                    // 解析基础 URL（不含参数）
+                    const urlObj = new URL(currentUrl);
+                    const baseUrl = urlObj.origin + urlObj.pathname;
+                    
+                    // 收集参数
+                    const params = [];
+                    const rows = document.querySelectorAll('#params-body tr');
+                    rows.forEach(row => {
+                        const keyInput = row.querySelector('.param-key');
+                        const valueInput = row.querySelector('.param-value');
+                        
+                        if (keyInput && valueInput) {
+                            const key = keyInput.value.trim();
+                            const value = valueInput.value.trim();
+                            if (key) {
+                                params.push({ key, value });
+                            }
+                        }
+                    });
+                    
+                    // 重建 URL
+                    if (params.length > 0) {
+                        const searchParams = new URLSearchParams();
+                        params.forEach(p => searchParams.append(p.key, p.value));
+                        urlInput.value = baseUrl + '?' + searchParams.toString();
+                    } else {
+                        urlInput.value = baseUrl;
+                    }
+                    
+                    // 触发自动保存
+                    if (currentRequest && currentRequest.id) {
+                        updateSaveIndicator('unsaved');
+                        debouncedAutoSave();
+                    }
+                } catch (e) {
+                    // URL 无效，不更新
+                }
+            }
+            
+            // 防抖的 URL 更新
+            const debounceUrlUpdate = debounce(updateUrlFromParams, 300);
+            
+            // 从 URL 刷新参数表格
+            function refreshParamsFromUrl() {
+                const urlInput = document.getElementById('url');
+                const url = urlInput.value.trim();
+                const params = parseUrlParams(url);
+                renderParams(params);
+            }
+            
+            // 监听 URL 输入变化，更新 Params 标签页
+            let lastUrl = '';
+            document.getElementById('url').addEventListener('input', debounce(() => {
+                const currentUrl = document.getElementById('url').value;
+                if (currentUrl !== lastUrl) {
+                    lastUrl = currentUrl;
+                    // 如果当前在 Params 标签页，刷新参数列表
+                    const paramsTab = document.querySelector('.tab[data-tab="params"]');
+                    if (paramsTab && paramsTab.classList.contains('active')) {
+                        refreshParamsFromUrl();
+                    }
+                }
+            }, 300));
+            
+            // 添加参数按钮
+            document.getElementById('add-param').addEventListener('click', () => {
+                addParamRow();
+                // 聚焦到新行的 key 输入框
+                const rows = document.querySelectorAll('#params-body tr');
+                const lastRow = rows[rows.length - 1];
+                const keyInput = lastRow?.querySelector('.param-key');
+                if (keyInput) keyInput.focus();
+            });
+            
+            // ========== End URL Params 功能 ==========
             
             // 添加 Header 行
             function addHeaderRow(key = '', value = '', enabled = true) {
