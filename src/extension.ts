@@ -309,7 +309,7 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-        try {
+      try {
         // 调用 RequestService 更新请求
         const updated = requestService.updateRequest(requestData.id, {
           name: requestData.name,
