@@ -138,6 +138,27 @@
 
 ---
 
+### ✅ Scenario 9: Switch Requests
+
+**目标**: 验证切换请求时 Params 标签页更新
+
+**步骤**:
+1. 创建请求 A: `https://api.example.com/users?page=1&size=10`
+2. 创建请求 B: `https://api.example.com/posts?limit=20&offset=0`
+3. 打开请求 A，点击 "Params" 标签页
+4. 验证显示 `page=1` 和 `size=10`
+5. 从左侧列表切换到请求 B
+6. 验证 Params 标签页自动更新，显示 `limit=20` 和 `offset=0`
+
+**预期结果**: ✅ 切换请求时 Params 标签页自动刷新
+
+**修复记录**: 
+- **问题**: 切换请求时 Params 标签页不更新
+- **修复**: 在 `updateRequestData` 消息处理中添加 `refreshParamsFromUrl()` 调用
+- **提交**: `a9b85b8` - fix: refresh params tab when switching requests 🔄
+
+---
+
 ### ✅ Scenario 8: Empty State
 
 **目标**: 验证空状态显示
