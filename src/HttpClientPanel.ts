@@ -30,7 +30,8 @@ export class HttpClientPanel {
       {
         enableScripts: true,
         localResourceRoots: [
-          vscode.Uri.joinPath(extensionUri, 'media')
+                    vscode.Uri.joinPath(extensionUri, 'media'),
+                    vscode.Uri.joinPath(extensionUri, 'node_modules', 'monaco-editor')
         ],
         retainContextWhenHidden: true
       }
@@ -54,8 +55,6 @@ export class HttpClientPanel {
 
     this._panel.webview.onDidReceiveMessage(
       async (message) => {
-        console.log('收到来自WebView的消息:', message);
-        
         switch (message.command) {
           case 'sendRequest':
             try {
@@ -65,7 +64,6 @@ export class HttpClientPanel {
               }
 
               const { method, url, headers, body } = message.data;
-              console.log('发送请求:', { method, url, headers });
               
               const headersObj: Record<string, string> = {};
               if (Array.isArray(headers)) {
@@ -75,8 +73,6 @@ export class HttpClientPanel {
                   }
                 });
               }
-              
-              console.log('处理后的headers:', headersObj);
               
               this._currentRequest = axios.CancelToken.source();
               
@@ -90,11 +86,6 @@ export class HttpClientPanel {
               });
               
               this._currentRequest = null;
-              
-              console.log('收到响应:', {
-                status: response.status,
-                statusText: response.statusText
-              });
               
               this._panel.webview.postMessage({
                 command: 'responseReceived',
@@ -177,6 +168,15 @@ export class HttpClientPanel {
               vscode.window.showErrorMessage('保存请求数据失败');
             }
             return;
+
+                    case 'autoSaveRequest':
+                        try {
+                            // 调用自动保存命令
+                            vscode.commands.executeCommand('httpClient.autoSaveRequest', message.data);
+                        } catch (error) {
+                            console.error('自动保存请求时出错:', error);
+                        }
+                        return;
         }
       },
       null,
@@ -191,405 +191,451 @@ export class HttpClientPanel {
   }
 
   private _getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): string {
+        // Monaco Editor URI
+        const monacoUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(extensionUri, 'node_modules', 'monaco-editor', 'min')
+        );
+
     return `<!DOCTYPE html>
     <html lang="zh">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'unsafe-inline';">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'unsafe-inline' 'unsafe-eval'; worker-src ${webview.cspSource} blob:; child-src ${webview.cspSource} blob:; font-src ${webview.cspSource} data:;">
         <title>Tunder Client</title>
         <style>
             :root {
-                --border-radius: 6px;
-                --primary-color: var(--vscode-button-background);
-                --hover-color: var(--vscode-button-hoverBackground);
-                --spacing: 16px;
-                --section-gap: 24px;
-                
-                /* JSON 语法高亮颜色 */
-                --json-key-color: #9cdcfe;
-                --json-string-color: #ce9178;
-                --json-number-color: #b5cea8;
-                --json-boolean-color: #569cd6;
-                --json-null-color: #569cd6;
+            /* 基础变量 */
+            --border-radius: 4px;
+            --spacing: 12px;
+            
+            /* 颜色变量 - 映射VSCode主题 */
+            --bg-primary: var(--vscode-editor-background);
+            --bg-secondary: var(--vscode-sideBar-background);
+            --bg-hover: var(--vscode-list-hoverBackground);
+            --fg-primary: var(--vscode-editor-foreground);
+            --fg-secondary: var(--vscode-descriptionForeground);
+            --border-color: var(--vscode-panel-border);
+            --input-bg: var(--vscode-input-background);
+            --input-border: var(--vscode-input-border);
+            --input-fg: var(--vscode-input-foreground);
+            --button-bg: var(--vscode-button-background);
+            --button-hover: var(--vscode-button-hoverBackground);
+            --button-fg: var(--vscode-button-foreground);
+            
+            /* 状态颜色 */
+            --status-success: #2ea043;
+            --status-success-bg: rgba(35, 134, 54, 0.15);
+            --status-error: #f85149;
+            --status-error-bg: rgba(248, 81, 73, 0.15);
+            --status-warning: #ff8c00;
+            --status-info: #388bfd;
+            
+            /* JSON 语法高亮 */
+            --json-key: #9cdcfe;
+            --json-string: #ce9178;
+            --json-number: #b5cea8;
+            --json-boolean: #569cd6;
+            --json-null: #569cd6;
+        }
+        
+        * {
+            box-sizing: border-box;
             }
             
             body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                padding: var(--spacing);
-                color: var(--vscode-foreground);
-                background-color: var(--vscode-editor-background);
-                line-height: 1.5;
                 margin: 0;
-            }
-            
-            .container {
-                max-width: 1200px;
-                margin: 0 auto;
-                display: grid;
-                grid-template-columns: 1fr 1fr; /* 左右布局 */
-                gap: var(--section-gap);
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-size: 13px;
+            color: var(--fg-primary);
+            background: var(--bg-primary);
+            overflow: hidden;
+        }
+        
+        /* 主容器 - 单栏布局 */
+        .main-container {
+            display: flex;
+            flex-direction: column;
                 height: 100vh;
-            }
-            
-            .request-section, .response-section {
-                background: var(--vscode-editor-background);
-                border: 1px solid var(--vscode-panel-border);
-                border-radius: var(--border-radius);
-                padding: calc(var(--spacing) * 1.25);
-                overflow: auto;
-            }
-            
-            .section-header {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                margin-bottom: var(--spacing);
-                padding-bottom: var(--spacing);
-                border-bottom: 1px solid var(--vscode-panel-border);
-            }
-            
-            .section-header h2 {
-                margin: 0;
-                font-size: 1.2em;
-                color: var(--vscode-editor-foreground);
-            }
-            
-            .section-title {
-                font-size: 1em;
-                font-weight: 500;
-                color: var(--vscode-foreground);
-                margin: var(--spacing) 0 calc(var(--spacing) * 0.5);
-                padding-bottom: calc(var(--spacing) * 0.5);
-                border-bottom: 1px solid var(--vscode-panel-border);
-            }
-            
-            .url-bar {
-                display: grid;
-                grid-template-columns: 120px minmax(300px, 1fr) auto;
+            padding: var(--spacing);
                 gap: var(--spacing);
-                margin-bottom: var(--spacing);
-                align-items: end;
-            }
-            
-            .form-group {
-                margin-bottom: var(--spacing);
-            }
-            
-            label {
-                display: block;
-                margin-bottom: 6px;
-                font-weight: 500;
-                color: var(--vscode-input-foreground);
-                font-size: 0.9em;
-            }
-            
-            input, select, textarea {
-                width: 100%;
+        }
+        
+        /* URL 输入区 */
+        .url-section {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .method-select {
+            min-width: 100px;
+            padding: 6px 10px;
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
+            color: var(--input-fg);
+                border-radius: var(--border-radius);
+            font-size: 13px;
+            cursor: pointer;
+        }
+        
+        .url-input {
+            flex: 1;
                 padding: 6px 10px;
-                border: 1px solid var(--vscode-input-border);
-                background-color: var(--vscode-input-background);
-                color: var(--vscode-input-foreground);
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
+            color: var(--input-fg);
                 border-radius: var(--border-radius);
                 font-size: 13px;
-                transition: border-color 0.2s, box-shadow 0.2s;
+            font-family: 'Consolas', 'Monaco', monospace;
             }
             
-            input:focus, select:focus, textarea:focus {
+        .url-input:focus, .method-select:focus {
                 outline: none;
-                border-color: var(--primary-color);
-                box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
-            }
-            
-            select {
-                appearance: none;
-                padding-right: 24px;
-                background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-                background-repeat: no-repeat;
-                background-position: right 8px center;
-                background-size: 12px;
-            }
-            
-            textarea {
-                min-height: 120px;
-                font-family: 'Fira Code', 'Consolas', monospace;
-                resize: vertical;
-                tab-size: 2;
-                line-height: 1.4;
-                white-space: pre;
-                overflow-x: auto;
-                color: var(--vscode-editor-foreground);
-                background-color: var(--vscode-editor-background);
-            }
-            
-            textarea::selection {
-                background-color: var(--vscode-editor-selectionBackground);
-            }
-            
-            /* JSON 语法高亮 */
-            textarea.json-content {
-                color: var(--json-string-color);
-            }
-            
-            textarea.json-content::placeholder {
-                color: var(--vscode-input-placeholderForeground);
-            }
-            
-            button {
-                background-color: var(--primary-color);
-                color: var(--vscode-button-foreground);
-                border: none;
-                padding: 6px 12px;
-                border-radius: var(--border-radius);
-                cursor: pointer;
+            border-color: var(--button-bg);
+        }
+        
+        .send-button {
+            padding: 6px 20px;
+            background: var(--button-bg);
+            color: var(--button-fg);
+            border: none;
+            border-radius: var(--border-radius);
+            font-size: 13px;
                 font-weight: 500;
-                transition: all 0.2s ease;
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-                font-size: 13px;
-                height: 28px;
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            }
-            
-            button:hover {
-                background-color: var(--hover-color);
-                transform: translateY(-1px);
-                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-            }
-            
-            button:active {
-                transform: translateY(0);
-                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-            }
-            
-            .send-btn {
-                min-width: 60px;
-                justify-content: center;
-                padding: 6px 8px;
-                font-size: 12px;
-            }
-            
-            .save-btn {
-                min-width: 100px;
-                justify-content: center;
-            }
-            
-            .send-btn.loading {
-                position: relative;
-                color: transparent;
-            }
-            
-            .send-btn.loading::after {
-                content: "";
-                position: absolute;
-                left: 50%;
-                top: 50%;
-                width: 14px;
-                height: 14px;
-                margin: -7px 0 0 -7px;
-                border: 2px solid rgba(255, 255, 255, 0.2);
-                border-top-color: white;
-                border-radius: 50%;
-                animation: spin 0.8s linear infinite;
-            }
-            
-            @keyframes spin {
-                to { transform: rotate(360deg); }
-            }
-            
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .send-button:hover {
+            background: var(--button-hover);
+        }
+        
+        .send-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .send-button.loading::after {
+            content: "";
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            margin-left: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* 保存状态指示器 */
+        .save-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            padding: 4px 10px;
+                border-radius: var(--border-radius);
+            white-space: nowrap;
+            margin-left: 12px;
+            transition: all 0.2s ease;
+        }
+        
+        .save-indicator.hidden {
+            display: none;
+        }
+        
+        .save-indicator.saved {
+            color: var(--vscode-testing-iconPassed);
+            background: rgba(115, 191, 105, 0.15);
+        }
+        
+        .save-indicator.saved .icon::before {
+            content: '✓';
+        }
+        
+        .save-indicator.saving {
+            color: var(--vscode-testing-iconQueued);
+            background: rgba(232, 164, 52, 0.15);
+        }
+        
+        .save-indicator.saving .icon::before {
+            content: '⏳';
+        }
+        
+        .save-indicator.unsaved {
+            color: var(--vscode-descriptionForeground);
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--border-color);
+        }
+        
+        .save-indicator.unsaved .icon::before {
+            content: '●';
+            font-size: 10px;
+        }
+        
+        .save-indicator.error {
+            color: var(--vscode-testing-iconFailed);
+            background: rgba(244, 71, 71, 0.15);
+        }
+        
+        .save-indicator.error .icon::before {
+            content: '✗';
+        }
+        
+        /* 标签页容器 */
+        .tabs-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+                border-radius: var(--border-radius);
+            background: var(--bg-primary);
+        }
+        
+        .tabs-header {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+        }
+        
+        .tab {
+            padding: 8px 16px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: var(--fg-secondary);
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        .tab:hover {
+            background: var(--bg-hover);
+            color: var(--fg-primary);
+        }
+        
+        .tab.active {
+            color: var(--button-bg);
+            border-bottom-color: var(--button-bg);
+            background: var(--bg-primary);
+        }
+        
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow: auto;
+            padding: var(--spacing);
+        }
+        
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Headers 表格 */
             .headers-table {
                 width: 100%;
-                border-collapse: separate;
-                border-spacing: 0;
-                margin-bottom: var(--spacing);
-                table-layout: fixed;
+            border-collapse: collapse;
+        }
+        
+        .headers-table thead {
+            position: sticky;
+            top: 0;
+            background: var(--bg-secondary);
+            z-index: 10;
             }
             
             .headers-table th {
                 text-align: left;
                 padding: 8px;
                 font-weight: 500;
-                color: var(--vscode-foreground);
-                border-bottom: 1px solid var(--vscode-panel-border);
-                font-size: 0.9em;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
+            font-size: 12px;
+            color: var(--fg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .headers-table th:first-child {
+            width: 30px;
             }
             
             .headers-table td {
                 padding: 4px;
-                vertical-align: middle;
+            border-bottom: 1px solid var(--border-color);
             }
             
             .headers-table tr:hover {
-                background-color: var(--vscode-list-hoverBackground);
-            }
-            
-            .headers-table input {
-                margin: 0;
-                border-radius: var(--border-radius);
-                width: 100%;
-                box-sizing: border-box;
-            }
-            
-            .key-cell {
-                width: 40%;
-            }
-            
-            .value-cell {
-                width: auto;
-            }
-            
-            .remove-header-btn {
+            background: var(--bg-hover);
+        }
+        
+        .headers-table input[type="checkbox"] {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
+        
+        .headers-table input[type="text"] {
+            width: 100%;
+            padding: 4px 8px;
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
+            color: var(--input-fg);
+            border-radius: 3px;
+            font-size: 13px;
+        }
+        
+        .headers-table input[type="text"]:focus {
+            outline: none;
+            border-color: var(--button-bg);
+        }
+        
+        .delete-btn {
                 background: none;
                 border: none;
-                color: var(--vscode-errorForeground);
+            color: var(--status-error);
                 cursor: pointer;
-                padding: 4px 8px;
-                border-radius: 50%;
-                font-size: 16px;
-                line-height: 1;
-                transition: background-color 0.2s;
-                height: auto;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                margin: 0 auto;
-                box-shadow: none;
-            }
-            
-            .remove-header-btn:hover {
-                background-color: var(--vscode-list-hoverBackground);
-                transform: none;
-                box-shadow: none;
-            }
-            
-            .add-header-btn {
+            font-size: 18px;
+            padding: 0 8px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+        
+        .delete-btn:hover {
+            opacity: 1;
+        }
+        
+        .add-button {
+            margin-top: 8px;
+            padding: 6px 12px;
                 background: none;
-                border: 1px solid var(--vscode-button-background);
-                color: var(--vscode-button-background);
-                padding: 4px 10px;
+            border: 1px solid var(--button-bg);
+            color: var(--button-bg);
+            border-radius: var(--border-radius);
                 font-size: 12px;
-                height: 24px;
-                box-shadow: none;
-            }
-            
-            .add-header-btn:hover {
-                background-color: var(--vscode-button-background);
-                color: var(--vscode-button-foreground);
-                transform: none;
-                box-shadow: none;
-            }
-            
-            .response-container {
-                margin-top: var(--spacing);
-            }
-            
-            .status {
-                display: inline-block;
-                padding: 4px 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .add-button:hover {
+            background: var(--button-bg);
+            color: var(--button-fg);
+        }
+        
+        /* Body 区域 */
+        .body-editor {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .monaco-container {
+            flex: 1;
+            min-height: 300px;
+            border: 1px solid var(--input-border);
                 border-radius: var(--border-radius);
-                font-weight: 500;
-                margin-bottom: var(--spacing);
-                font-size: 0.9em;
-            }
-            
-            .status.success {
-                background-color: rgba(35, 134, 54, 0.2);
-                color: #2ea043;
-            }
-            
-            .status.error {
-                background-color: rgba(248, 81, 73, 0.2);
-                color: #f85149;
-            }
-            
-            .status.info {
-                background-color: rgba(56, 139, 253, 0.2);
-                color: #388bfd;
-            }
-            
-            pre.json {
-                margin: 0;
-                padding: var(--spacing);
-                background: var(--vscode-textBlockQuote-background);
+            overflow: hidden;
+        }
+        
+        .format-button-legacy {
+            padding: 4px 12px;
+            background: none;
+            border: 1px solid var(--button-bg);
+            color: var(--button-bg);
                 border-radius: var(--border-radius);
-                overflow-x: auto;
-                white-space: pre;
-                font-family: 'Fira Code', 'Consolas', monospace;
-            }
-            
-            .json-key {
-                color: var(--json-key-color);
-            }
-            
-            .json-string {
-                color: var(--json-string-color);
-            }
-            
-            .json-number {
-                color: var(--json-number-color);
-            }
-            
-            .json-boolean {
-                color: var(--json-boolean-color);
-            }
-            
-            .json-null {
-                color: var(--json-null-color);
-            }
-            
-            .clear-response-btn {
-                background: none;
-                border: none;
-                color: var(--vscode-descriptionForeground);
+            font-size: 12px;
+            cursor: pointer;
+        }
+        
+        .format-button:hover {
+            background: var(--button-bg);
+            color: var(--button-fg);
+        }
+        
+        /* Response 区域 */
+        .response-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 12px;
+        }
+        
+        .response-info {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status-success {
+            background: var(--status-success-bg);
+            color: var(--status-success);
+        }
+        
+        .status-error {
+            background: var(--status-error-bg);
+            color: var(--status-error);
+        }
+        
+        .status-info {
+            background: rgba(56, 139, 253, 0.15);
+            color: var(--status-info);
+        }
+        
+        .response-meta {
+            font-size: 12px;
+            color: var(--fg-secondary);
+        }
+        
+        .response-body {
+            flex: 1;
+            min-height: 200px;
+            max-height: 600px;
+            overflow: auto;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius);
+            font-family: 'Consolas', 'Monaco', monospace;
                 font-size: 12px;
-                padding: 4px 8px;
-                cursor: pointer;
-                box-shadow: none;
-            }
-            
-            .clear-response-btn:hover {
-                color: var(--vscode-foreground);
-                background-color: var(--vscode-list-hoverBackground);
-                transform: none;
-                box-shadow: none;
-            }
-            
-            /* 添加URL高亮样式 */
-            .url-highlight {
-                color: var(--json-string-color);
-            }
-            
-            .url-protocol {
-                color: var(--json-key-color);
-            }
-            
-            .url-path {
-                color: var(--json-string-color);
-            }
-            
-            .url-query {
-                color: var(--json-number-color);
-            }
-            
-            #url {
-                font-family: 'Fira Code', 'Consolas', monospace;
-                min-width: 300px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-all;
+            color: var(--fg-primary);
+        }
+        
+        /* JSON 语法高亮 */
+        .json-key { color: var(--json-key); }
+        .json-string { color: var(--json-string); }
+        .json-number { color: var(--json-number); }
+        .json-boolean { color: var(--json-boolean); }
+        .json-null { color: var(--json-null); }
+        
+        .empty-state {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--fg-secondary);
+            font-size: 14px;
             }
         </style>
     </head>
     <body>
-        <div class="container">
-            <div class="request-section">
-                <div class="section-header">
-                    <h2>请求</h2>
-                </div>
-                
-                <div class="url-bar">
-                    <select id="method">
+    <div class="main-container">
+        <!-- URL输入区 -->
+        <div class="url-section">
+            <select class="method-select" id="method">
                         <option value="GET">GET</option>
                         <option value="POST">POST</option>
                         <option value="PUT">PUT</option>
@@ -598,295 +644,703 @@ export class HttpClientPanel {
                         <option value="HEAD">HEAD</option>
                         <option value="OPTIONS">OPTIONS</option>
                     </select>
-                    <input type="text" id="url" placeholder="https://" value="https://">
-                    <button class="send-btn" id="sendRequest">发送</button>
+            <input type="text" class="url-input" id="url" placeholder="Enter request URL" value="">
+            <button class="send-button" id="sendBtn">Send</button>
+            <div class="save-indicator hidden" id="save-indicator">
+                <span class="icon"></span>
+                <span class="text">已保存</span>
+            </div>
                 </div>
 
-                <div class="section-title">请求头</div>
+        <!-- 标签页容器 -->
+        <div class="tabs-container">
+            <!-- 标签页头部 -->
+            <div class="tabs-header">
+                <div class="tab active" data-tab="headers">Headers</div>
+                <div class="tab" data-tab="body">Body</div>
+                <div class="tab" data-tab="params">Params</div>
+            </div>
+            
+            <!-- Headers 标签页 -->
+            <div class="tab-content active" id="headers-tab">
                 <table class="headers-table">
                     <thead>
                         <tr>
-                            <th class="key-cell">Key</th>
-                            <th class="value-cell">Value</th>
-                            <th style="width: 40px;"></th>
+                            <th></th>
+                            <th>Key</th>
+                            <th>Value</th>
+                            <th></th>
                         </tr>
                     </thead>
-                    <tbody id="headersContainer"></tbody>
+                    <tbody id="headers-body"></tbody>
                 </table>
-                <button class="add-header-btn" id="addHeader">添加请求头</button>
-
-                <div class="section-title">请求体</div>
-                <div style="position: relative;">
-                    <textarea id="requestBody" placeholder="请输入请求体"></textarea>
-                    <button id="formatBody" style="position: absolute; right: 8px; top: 8px; padding: 4px 8px; font-size: 12px; height: 24px; background: none; border: 1px solid var(--vscode-button-background); color: var(--vscode-button-background);">格式化</button>
+                <button class="add-button" id="add-header">+ Add</button>
+            </div>
+            
+            <!-- Body 标签页 -->
+            <div class="tab-content" id="body-tab">
+                <div class="body-editor">
+                    <div id="body-editor" class="monaco-container"></div>
                 </div>
             </div>
 
-            <div class="response-section" id="responseContainer" style="display: none;">
-                <div class="section-header">
-                    <h2>响应</h2>
-                    <button class="clear-response-btn" id="clearResponse">清除</button>
+            <!-- Params 标签页 -->
+            <div class="tab-content" id="params-tab">
+                <table class="headers-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Key</th>
+                            <th>Value</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="params-body"></tbody>
+                </table>
+                <button class="add-button" id="add-param">+ Add</button>
                 </div>
-                <div id="responseContent"></div>
+        </div>
+
+        <!-- Response 区域 -->
+        <div class="tabs-container" id="response-container" style="display: none;">
+            <div class="tabs-header">
+                <div class="tab active">Response</div>
+                </div>
+            <div class="tab-content active">
+                <div class="response-header">
+                    <div class="response-info">
+                        <div class="status-badge" id="status-badge"></div>
+                        <span class="response-meta" id="response-time"></span>
+                        <span class="response-meta" id="response-size"></span>
+                    </div>
+                </div>
+                <div class="response-body" id="response-body"></div>
             </div>
         </div>
 
+        <script src="${monacoUri}/vs/loader.js"></script>
         <script>
             (function() {
                 const vscode = acquireVsCodeApi();
-                let headers = [];
-
-                function addHeader() {
-                    const headersContainer = document.getElementById('headersContainer');
-                    const row = document.createElement('tr');
-                    row.innerHTML = 
-                        '<td class="key-cell"><input type="text" class="header-key" placeholder="Key"></td>' +
-                        '<td class="value-cell"><input type="text" class="header-value" placeholder="Value"></td>' +
-                        '<td><button class="remove-header-btn" onclick="window.removeHeader(this)">×</button></td>';
-                    headersContainer.appendChild(row);
-                }
-
-                // 修改为window对象的方法，使其在全局可访问
-                window.removeHeader = function(button) {
-                    button.closest('tr').remove();
+            let bodyEditor = null; // Monaco Editor 实例
+            let currentRequest = null; // 当前请求对象
+            
+            // 防抖函数
+            function debounce(func, delay) {
+                let timeoutId;
+                return function(...args) {
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                    }
+                    timeoutId = setTimeout(() => {
+                        func.apply(this, args);
+                    }, delay);
                 };
-
-                // URL高亮函数
-                function highlightUrl(url) {
-                    try {
-                        const urlObj = new URL(url);
-                        return '<span class="url-protocol">' + urlObj.protocol + '//' + '</span>' +
-                               '<span class="url-path">' + urlObj.host + urlObj.pathname + '</span>' +
-                               (urlObj.search ? '<span class="url-query">' + urlObj.search + '</span>' : '');
-                    } catch (e) {
-                        return url;
-                    }
-                }
-
-                // 监听URL输入框变化
-                const urlInput = document.getElementById('url');
-                urlInput.addEventListener('input', function() {
-                    const url = this.value;
-                    if (url.startsWith('http://') || url.startsWith('https://')) {
-                        try {
-                            new URL(url); // 验证URL是否有效
-                            this.classList.add('url-highlight');
-                        } catch (e) {
-                            this.classList.remove('url-highlight');
-                        }
-                    } else {
-                        this.classList.remove('url-highlight');
-                    }
-                });
-
-                function getRequestData() {
-                    const method = document.getElementById('method').value;
-                    const url = document.getElementById('url').value;
-                    const body = document.getElementById('requestBody').value;
-                    
-                    const headers = [];
-                    document.querySelectorAll('#headersContainer tr').forEach(row => {
-                        const key = row.querySelector('.header-key').value.trim();
-                        const value = row.querySelector('.header-value').value.trim();
-                        if (key) {
-                            headers.push({ key, value });
-                        }
-                    });
-
-                    return { method, url, headers, body };
-                }
-
-                function updateRequestData(data) {
-                    const { method, url, headers, body } = data;
-                    document.getElementById('method').value = method;
-                    document.getElementById('url').value = url;
-                    document.getElementById('requestBody').value = body || '';
-                    
-                    const headersContainer = document.getElementById('headersContainer');
-                    headersContainer.innerHTML = '';
-                    
-                    if (Array.isArray(headers)) {
-                        headers.forEach(header => {
-                            const row = document.createElement('tr');
-                            const keyValue = header.key || '';
-                            const valueValue = header.value || '';
-                            row.innerHTML = 
-                                '<td class="key-cell"><input type="text" class="header-key" value="' + keyValue + '" placeholder="Key"></td>' + 
-                                '<td class="value-cell"><input type="text" class="header-value" value="' + valueValue + '" placeholder="Value"></td>' + 
-                                '<td><button class="remove-header-btn" onclick="removeHeader(this)">×</button></td>';
-                            headersContainer.appendChild(row);
-                        });
-                    }
+            }
+            
+            // 自动保存函数
+            function autoSave() {
+                // 关键判断：只有已保存的请求才自动保存
+                if (!currentRequest || !currentRequest.id) {
+                    console.log('[AutoSave] 跳过：新建请求不自动保存');
+                    return;
                 }
                 
-                // 格式化JSON并添加语法高亮
-                function formatJSON(json) {
-                    if (typeof json !== 'string') {
-                        json = JSON.stringify(json, null, 2);
+                console.log('[AutoSave] 触发自动保存:', currentRequest.id);
+                updateSaveIndicator('saving');
+                
+                // 收集表单数据
+                const requestData = {
+                    id: currentRequest.id,
+                    name: currentRequest.name || '',
+                    url: document.getElementById('url')?.value || '',
+                    method: document.getElementById('method')?.value || 'GET',
+                    headers: getHeadersArray(),
+                    body: bodyEditor ? bodyEditor.getValue() : ''
+                };
+                
+                // 发送自动保存消息
+                vscode.postMessage({
+                    command: 'autoSaveRequest',
+                    data: requestData
+                });
+            }
+            
+            // 创建防抖保存函数（500ms）
+            const debouncedAutoSave = debounce(autoSave, 500);
+            
+            // 更新保存状态指示器
+            function updateSaveIndicator(status, message) {
+                const indicator = document.getElementById('save-indicator');
+                if (!indicator) return;
+
+                // 只对已保存请求显示指示器
+                if (!currentRequest || !currentRequest.id) {
+                    indicator.classList.add('hidden');
+                    return;
+                }
+                
+                indicator.classList.remove('hidden');
+                indicator.classList.remove('saved', 'saving', 'unsaved', 'error');
+                indicator.classList.add(status);
+
+                const textEl = indicator.querySelector('.text');
+                if (textEl) {
+                    const statusText = {
+                        saved: '已保存',
+                        saving: '保存中...',
+                        unsaved: '有未保存更改',
+                        error: message || '保存失败'
+                    };
+                    textEl.textContent = statusText[status];
+                }
+            }
+            
+            // 获取 Headers 数组
+            function getHeadersArray() {
+                const headers = [];
+                const rows = document.querySelectorAll('#headers-body tr');
+                rows.forEach(row => {
+                    const checkbox = row.querySelector('input[type="checkbox"]');
+                    const keyInput = row.querySelector('input[name="key"]');
+                    const valueInput = row.querySelector('input[name="value"]');
+                    
+                    if (checkbox && checkbox.checked && keyInput && valueInput) {
+                        const key = keyInput.value.trim();
+                        const value = valueInput.value.trim();
+                        if (key || value) {
+                            headers.push({ key, value });
+                        }
+                    }
+                });
+                return headers;
+            }
+            
+            // 配置 Monaco Loader
+            require.config({ 
+                paths: { 'vs': '${monacoUri}/vs' },
+                onError: function(err) {
+                    console.error('[Monaco] Load error:', err);
+                    console.error('[Monaco] Error type:', err.errorType);
+                    console.error('[Monaco] Module ID:', err.moduleId);
+                    alert('Monaco Editor 加载失败！\\n错误: ' + err.errorType + '\\n模块: ' + err.moduleId + '\\n\\n将使用简化编辑器。');
+                    initFallbackEditor();
+                }
+            });
+            
+            // 初始化 Monaco Editor
+            require(['vs/editor/editor.main'], function() {
+                bodyEditor = monaco.editor.create(document.getElementById('body-editor'), {
+                    value: '',
+                    language: 'json',
+                    theme: 'vs-dark',
+                    automaticLayout: true,
+                    minimap: { enabled: false },
+                    lineNumbers: 'on',
+                    scrollBeyondLastLine: false,
+                    fontSize: 13,
+                    fontFamily: 'Consolas, Monaco, Courier New, monospace',
+                    wordWrap: 'on',
+                    formatOnPaste: true,   // ✅ 启用粘贴格式化
+                    formatOnType: true,    // ✅ 启用实时格式化
+                    tabSize: 2,
+                    insertSpaces: true
+                });
+                window.bodyEditor = bodyEditor; // 全局引用
+                
+                // 自动格式化：粘贴时
+                bodyEditor.onDidPaste(() => {
+                    setTimeout(() => {
+                        if (bodyEditor.getModel().getLanguageId() === 'json') {
+                            try {
+                                const content = bodyEditor.getValue();
+                                JSON.parse(content); // 验证是否为有效 JSON
+                                bodyEditor.getAction('editor.action.formatDocument').run();
+                    } catch (e) {
+                                // 非法 JSON，不格式化
+                            }
+                        }
+                    }, 50);
+                });
+                
+                // 自动格式化：失焦时
+                let lastContent = '';
+                bodyEditor.onDidBlurEditorText(() => {
+                    const currentContent = bodyEditor.getValue();
+                    if (currentContent !== lastContent && bodyEditor.getModel().getLanguageId() === 'json') {
+                        try {
+                            JSON.parse(currentContent); // 验证是否为有效 JSON
+                            bodyEditor.getAction('editor.action.formatDocument').run();
+                            lastContent = currentContent;
+                        } catch (e) {
+                            // 非法 JSON，不格式化
+                        }
+                    }
+                });
+                
+                // 监听内容变化以更新语言模式
+                bodyEditor.onDidChangeModelContent(() => {
+                    updateEditorLanguage();
+                });
+                
+                // 绑定依赖 bodyEditor 的事件（必须在 Monaco 初始化后）
+                bindEditorDependentEvents();
+            });
+            
+            // 语言检测函数
+            function updateEditorLanguage() {
+                if (!bodyEditor) return;
+                
+                const contentType = getActiveContentType();
+                const body = bodyEditor.getValue();
+                const lang = detectLanguage(body, contentType);
+                
+                if (bodyEditor.getModel().getLanguageId() !== lang) {
+                    monaco.editor.setModelLanguage(bodyEditor.getModel(), lang);
+                }
+            }
+            
+            // 获取当前激活的 Content-Type
+            function getActiveContentType() {
+                const rows = document.querySelectorAll('#headers-body tr');
+                for (const row of rows) {
+                    const checkbox = row.querySelector('input[type="checkbox"]');
+                    const keyInput = row.querySelector('input[name="key"]');
+                    const valueInput = row.querySelector('input[name="value"]');
+                    
+                    if (checkbox && checkbox.checked && 
+                        keyInput && keyInput.value.toLowerCase() === 'content-type' &&
+                        valueInput) {
+                        return valueInput.value;
+                    }
+                }
+                return null;
+            }
+            
+            // 语言检测逻辑
+            function detectLanguage(body, contentType) {
+                // 1. Content-Type 优先
+                if (contentType) {
+                    const ct = contentType.toLowerCase();
+                    if (ct.includes('json')) return 'json';
+                    if (ct.includes('xml')) return 'xml';
+                    if (ct.includes('html')) return 'html';
+                    if (ct.includes('javascript')) return 'javascript';
+                    if (ct.includes('yaml')) return 'yaml';
+                    return 'plaintext';
+                }
+                
+                // 2. 智能检测
+                if (!body || body.trim() === '') return 'json'; // 默认 JSON
+                
+                try {
+                    JSON.parse(body);
+                    return 'json';
+                } catch {
+                    const trimmed = body.trim();
+                    if (trimmed.startsWith('<')) return 'xml';
+                    if (trimmed.startsWith('{') || trimmed.startsWith('[')) return 'json'; // 可能是未完成的 JSON
+                    return 'plaintext';
+                }
+            }
+            
+            // 标签页切换
+            document.querySelectorAll('.tab[data-tab]').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabName = tab.getAttribute('data-tab');
+                    if (!tabName) return;
+                    
+                    // 只操作 Headers/Body 的标签页容器，不影响 Response 容器
+                    const mainContainer = tab.closest('.tabs-container');
+                    
+                    // 只移除当前容器内的 active 状态
+                    mainContainer.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    mainContainer.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    
+                    // 添加 active 状态
+                    tab.classList.add('active');
+                    document.getElementById(tabName + '-tab').classList.add('active');
+                    
+                    // 当切换到 Body 标签页时，触发 Monaco 布局更新
+                    if (tabName === 'body' && bodyEditor) {
+                        setTimeout(() => bodyEditor.layout(), 100);
                     }
                     
-                    // 转义HTML特殊字符
-                    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    // 当切换到 Params 标签页时，刷新参数列表
+                    if (tabName === 'params') {
+                        refreshParamsFromUrl();
+                    }
+                });
+            });
+            
+            // ========== URL Params 功能 ==========
+            
+            // 解析 URL 参数
+            function parseUrlParams(url) {
+                const params = [];
+                try {
+                    const urlObj = new URL(url);
+                    const searchParams = new URLSearchParams(urlObj.search);
                     
-                    // 添加语法高亮
-                    return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                    // 支持重复键
+                    for (const [key, value] of searchParams.entries()) {
+                        params.push({ key, value });
+                    }
+                    } catch (e) {
+                    // URL 无效或没有参数
+                }
+                return params;
+            }
+            
+            // 渲染参数表格
+            function renderParams(params) {
+                const tbody = document.getElementById('params-body');
+                tbody.innerHTML = '';
+                
+                if (params.length === 0) {
+                    // 显示空状态
+                    const row = tbody.insertRow();
+                    row.innerHTML = '<td colspan="4" style="text-align:center;color:var(--fg-secondary);padding:20px;">No parameters. Add one to get started.</td>';
+                } else {
+                    params.forEach((param, index) => {
+                        addParamRow(param.key, param.value, index);
+                    });
+                }
+            }
+            
+            // 添加参数行
+            function addParamRow(key = '', value = '', index = -1) {
+                const tbody = document.getElementById('params-body');
+                const row = tbody.insertRow();
+                row.dataset.paramIndex = index;
+                row.innerHTML = \`
+                    <td></td>
+                    <td><input type="text" class="param-key" value="\${key}" placeholder="Key" /></td>
+                    <td><input type="text" class="param-value" value="\${value}" placeholder="Value" /></td>
+                    <td><button class="delete-btn">×</button></td>
+                \`;
+                
+                // 绑定输入事件
+                const keyInput = row.querySelector('.param-key');
+                const valueInput = row.querySelector('.param-value');
+                
+                keyInput.addEventListener('input', debounceUrlUpdate);
+                valueInput.addEventListener('input', debounceUrlUpdate);
+                
+                // 绑定删除事件
+                row.querySelector('.delete-btn').addEventListener('click', () => {
+                    row.remove();
+                    updateUrlFromParams();
+                });
+            }
+            
+            // 从 Params 表格更新 URL
+            function updateUrlFromParams() {
+                const urlInput = document.getElementById('url');
+                const currentUrl = urlInput.value.trim();
+                
+                if (!currentUrl) return;
+                
+                try {
+                    // 解析基础 URL（不含参数）
+                    const urlObj = new URL(currentUrl);
+                    const baseUrl = urlObj.origin + urlObj.pathname;
+                    
+                    // 收集参数
+                    const params = [];
+                    const rows = document.querySelectorAll('#params-body tr');
+                    rows.forEach(row => {
+                        const keyInput = row.querySelector('.param-key');
+                        const valueInput = row.querySelector('.param-value');
+                        
+                        if (keyInput && valueInput) {
+                            const key = keyInput.value.trim();
+                            const value = valueInput.value.trim();
+                            if (key) {
+                                params.push({ key, value });
+                            }
+                        }
+                    });
+                    
+                    // 重建 URL
+                    if (params.length > 0) {
+                        const searchParams = new URLSearchParams();
+                        params.forEach(p => searchParams.append(p.key, p.value));
+                        urlInput.value = baseUrl + '?' + searchParams.toString();
+                    } else {
+                        urlInput.value = baseUrl;
+                    }
+                    
+                    // 触发自动保存
+                    if (currentRequest && currentRequest.id) {
+                        updateSaveIndicator('unsaved');
+                        debouncedAutoSave();
+                    }
+                } catch (e) {
+                    // URL 无效，不更新
+                }
+            }
+            
+            // 防抖的 URL 更新
+            const debounceUrlUpdate = debounce(updateUrlFromParams, 300);
+            
+            // 从 URL 刷新参数表格
+            function refreshParamsFromUrl() {
+                const urlInput = document.getElementById('url');
+                const url = urlInput.value.trim();
+                const params = parseUrlParams(url);
+                renderParams(params);
+            }
+            
+            // 监听 URL 输入变化，更新 Params 标签页
+            let lastUrl = '';
+            document.getElementById('url').addEventListener('input', debounce(() => {
+                const currentUrl = document.getElementById('url').value;
+                if (currentUrl !== lastUrl) {
+                    lastUrl = currentUrl;
+                    // 如果当前在 Params 标签页，刷新参数列表
+                    const paramsTab = document.querySelector('.tab[data-tab="params"]');
+                    if (paramsTab && paramsTab.classList.contains('active')) {
+                        refreshParamsFromUrl();
+                    }
+                }
+            }, 300));
+            
+            // 添加参数按钮
+            document.getElementById('add-param').addEventListener('click', () => {
+                addParamRow();
+                // 聚焦到新行的 key 输入框
+                const rows = document.querySelectorAll('#params-body tr');
+                const lastRow = rows[rows.length - 1];
+                const keyInput = lastRow?.querySelector('.param-key');
+                if (keyInput) keyInput.focus();
+            });
+            
+            // ========== End URL Params 功能 ==========
+            
+            // 添加 Header 行
+            function addHeaderRow(key = '', value = '', enabled = true) {
+                const tbody = document.getElementById('headers-body');
+                const row = tbody.insertRow();
+                row.innerHTML = \`
+                    <td><input type="checkbox" \${enabled ? 'checked' : ''} /></td>
+                    <td><input type="text" name="key" value="\${key}" placeholder="Key" /></td>
+                    <td><input type="text" name="value" value="\${value}" placeholder="Value" /></td>
+                    <td><button class="delete-btn">×</button></td>
+                \`;
+                
+                row.querySelector('.delete-btn').addEventListener('click', () => row.remove());
+            }
+            
+            document.getElementById('add-header').addEventListener('click', () => addHeaderRow());
+            
+            // 初始添加一行
+            addHeaderRow('Content-Type', 'application/json');
+            
+            // 降级方案：如果 Monaco 加载失败，使用简单 textarea
+            function initFallbackEditor() {
+                const container = document.getElementById('body-editor');
+                container.innerHTML = '<textarea id="body-fallback" style="width:100%;height:100%;padding:8px;font-family:monospace;font-size:13px;border:none;background:var(--input-bg);color:var(--input-fg);resize:none;"></textarea>';
+                
+                const textarea = document.getElementById('body-fallback');
+                bodyEditor = {
+                    getValue: () => textarea.value,
+                    setValue: (v) => { textarea.value = v; },
+                    getModel: () => ({ getLanguageId: () => 'json' })
+                };
+                window.bodyEditor = bodyEditor;
+                bindEditorDependentEvents();
+            }
+            
+            // Monaco 加载超时检测（5秒）
+            setTimeout(() => {
+                if (!bodyEditor) {
+                    console.error('[Monaco] Load timeout! Falling back to textarea.');
+                    alert('Monaco Editor 加载超时，使用简化编辑器。');
+                    initFallbackEditor();
+                }
+            }, 5000);
+            
+            // 绑定依赖 bodyEditor 的事件（在 Monaco 初始化后调用）
+            function bindEditorDependentEvents() {
+                // 监听 URL 输入变化
+                document.getElementById('url')?.addEventListener('input', () => {
+                    if (currentRequest && currentRequest.id) {
+                        updateSaveIndicator('unsaved');
+                        debouncedAutoSave();
+                    }
+                });
+                
+                // 监听 Method 选择变化
+                document.getElementById('method')?.addEventListener('change', () => {
+                    if (currentRequest && currentRequest.id) {
+                        updateSaveIndicator('unsaved');
+                        debouncedAutoSave();
+                    }
+                });
+                
+                // 监听 Headers 表格变化（事件委托）
+                document.getElementById('headers-body')?.addEventListener('input', (e) => {
+                    if (e.target && (e.target.name === 'key' || e.target.name === 'value')) {
+                        if (currentRequest && currentRequest.id) {
+                            updateSaveIndicator('unsaved');
+                            debouncedAutoSave();
+                        }
+                    }
+                });
+                
+                // 监听 Headers checkbox 变化
+                document.getElementById('headers-body')?.addEventListener('change', (e) => {
+                    if (e.target && e.target.type === 'checkbox') {
+                        if (currentRequest && currentRequest.id) {
+                            updateSaveIndicator('unsaved');
+                            debouncedAutoSave();
+                        }
+                    }
+                });
+                
+                // 监听 Monaco Editor 内容变化
+                if (bodyEditor) {
+                    bodyEditor.onDidChangeModelContent(() => {
+                        if (currentRequest && currentRequest.id) {
+                            updateSaveIndicator('unsaved');
+                            debouncedAutoSave();
+                        }
+                    });
+                }
+                
+                // 发送请求
+                document.getElementById('sendBtn').addEventListener('click', () => {
+                    if (!bodyEditor) {
+                        alert('Editor is still loading, please try again.');
+                        return;
+                    }
+                    
+                    const method = document.getElementById('method').value;
+                    const url = document.getElementById('url').value;
+                    const body = bodyEditor.getValue();
+                        
+                    const headers = [];
+                    document.querySelectorAll('#headers-body tr').forEach(row => {
+                        const checkbox = row.querySelector('input[type="checkbox"]');
+                        const keyInput = row.querySelectorAll('input[type="text"]')[0];
+                        const valueInput = row.querySelectorAll('input[type="text"]')[1];
+                        
+                        if (checkbox.checked && keyInput.value.trim()) {
+                            headers.push({
+                                key: keyInput.value.trim(),
+                                value: valueInput.value.trim()
+                            });
+                        }
+                    });
+                    
+                    const btn = document.getElementById('sendBtn');
+                    btn.classList.add('loading');
+                    btn.disabled = true;
+                    
+                    vscode.postMessage({
+                        command: 'sendRequest',
+                        data: { method, url, headers, body }
+                    });
+                });
+            }
+
+            // 格式化 JSON
+            // Beautify 按钮已移除，Monaco Editor 自动格式化
+            
+            // 格式化 JSON 带语法高亮
+            function formatJSON(obj) {
+                let json = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+                    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                return json.replace(/("(\\\\u[a-zA-Z0-9]{4}|\\\\[^u]|[^\\\\"])*"(\s*:)?|\\b(true|false|null)\\b|-?\\d+(?:\\.\\d*)?(?:[eE][+\\-]?\\d+)?)/g, (match) => {
                         let cls = 'json-number';
                         if (/^"/.test(match)) {
-                            if (/:$/.test(match)) {
-                                cls = 'json-key';
-                                // 移除末尾的冒号
-                                match = match.replace(/:$/, '') + ':';
-                            } else {
-                                cls = 'json-string';
-                            }
+                        cls = /:$/.test(match) ? 'json-key' : 'json-string';
                         } else if (/true|false/.test(match)) {
                             cls = 'json-boolean';
                         } else if (/null/.test(match)) {
                             cls = 'json-null';
                         }
-                        
-                        // 对于键，添加特殊格式
-                        if (cls === 'json-key') {
-                            return '<span class="' + cls + '">' + match.substring(0, match.length - 1) + '</span>:';
-                        }
-                        
-                        return '<span class="' + cls + '">' + match + '</span>';
-                    });
-                }
-
-                // 格式化请求体
-                document.getElementById('formatBody').addEventListener('click', () => {
-                    const textarea = document.getElementById('requestBody');
-                    try {
-                        const json = JSON.parse(textarea.value);
-                        const formattedJson = JSON.stringify(json, null, 2);
-                        textarea.value = formattedJson;
-                        textarea.classList.add('json-content');
-                        textarea.focus();
-                    } catch (e) {
-                        // 如果不是有效的 JSON，保持原样
-                        console.error('Invalid JSON:', e);
-                        textarea.classList.remove('json-content');
-                    }
+                    return \`<span class="\${cls}">\${match}</span>\`;
                 });
-
-                // 重置响应区域
-                function resetResponse() {
-                    const responseContainer = document.getElementById('responseContainer');
-                    const responseContent = document.getElementById('responseContent');
-                    responseContainer.style.display = 'none';
-                    responseContent.innerHTML = '';
-                }
-
-                document.getElementById('addHeader').addEventListener('click', addHeader);
-                
-                document.getElementById('clearResponse').addEventListener('click', resetResponse);
-
-                document.getElementById('sendRequest').addEventListener('click', () => {
-                    const sendButton = document.getElementById('sendRequest');
-                    sendButton.classList.add('loading');
-                    sendButton.disabled = true;
-
-                    const requestData = getRequestData();
-                    vscode.postMessage({
-                        command: 'sendRequest',
-                        data: requestData
-                    });
-                });
-
-                // 监听来自扩展的消息
+            }
+            
+            // 处理响应
                 window.addEventListener('message', event => {
                     const message = event.data;
-                    switch (message.command) {
-                        case 'updateRequestData':
-                            updateRequestData(message.data);
-                            break;
-
-                        case 'resetResponse':
-                            resetResponse();
-                            break;
-
-                        case 'requestDataRequested':
-                            const requestData = getRequestData();
-                            vscode.postMessage({
-                                command: 'saveRequest',
-                                data: requestData
-                            });
-                            break;
-
-                        case 'responseReceived':
-                            const responseContainer = document.getElementById('responseContainer');
-                            const responseContent = document.getElementById('responseContent');
-                            responseContainer.style.display = 'block';
-
+                
+                if (message.command === 'responseReceived') {
                             const { status, statusText, headers, data } = message.data;
-                            let statusClass = 'info';
-                            if (status >= 200 && status < 300) {
-                                statusClass = 'success';
-                            } else if (status >= 400) {
-                                statusClass = 'error';
-                            }
-
-                            const statusStr = status + ' ' + statusText;
-                            const headersStr = formatJSON(headers);
-                            const dataStr = typeof data === 'object' ? formatJSON(data) : data;
-                            
-                            // 重置按钮状态
-                            const sendButton = document.getElementById('sendRequest');
-                            if (sendButton) {
-                                sendButton.classList.remove('loading');
-                                sendButton.disabled = false;
-                                sendButton.style.display = 'inline-block';
-                            }
-                            
-                            responseContent.innerHTML = 
-                                '<div class="status ' + statusClass + '">' + statusStr + '</div>' +
-                                '<div class="section-title">响应头</div>' +
-                                '<pre class="json">' + headersStr + '</pre>' +
-                                '<div class="section-title">响应体</div>' +
-                                '<pre class="json">' + dataStr + '</pre>';
-                            break;
-
-                        case 'requestError':
-                            const errorContainer = document.getElementById('responseContainer');
-                            const errorContent = document.getElementById('responseContent');
-                            errorContainer.style.display = 'block';
-                            const errorMessage = message.error || 'Unknown error';
-                            errorContent.innerHTML = 
-                                '<div class="status error">' + errorMessage + '</div>';
-                            
-                            // 重置按钮状态
-                            const errorSendButton = document.getElementById('sendRequest');
-                            if (errorSendButton) {
-                                errorSendButton.classList.remove('loading');
-                                errorSendButton.disabled = false;
-                            }
-                            break;
-                    }
-                });
-
-                // 添加键盘快捷键
-                document.addEventListener('keydown', event => {
-                    if ((event.metaKey || event.ctrlKey) && event.key === 's') {
-                        event.preventDefault();
-                        saveCurrentRequest();
-                    }
-                });
-
-                // 保存当前请求的函数
-                function saveCurrentRequest() {
-                    const requestData = getRequestData();
                     
-                    if (!requestData.url) {
-                        alert('请输入URL');
-                        return;
+                    const btn = document.getElementById('sendBtn');
+                    btn.classList.remove('loading');
+                    btn.disabled = false;
+                    
+                    const container = document.getElementById('response-container');
+                    container.style.display = 'flex';
+                    
+                    const badge = document.getElementById('status-badge');
+                    badge.textContent = status + ' ' + statusText;
+                    badge.className = 'status-badge ' + (status < 300 ? 'status-success' : status < 400 ? 'status-info' : 'status-error');
+                    
+                    const responseBody = document.getElementById('response-body');
+                    responseBody.innerHTML = formatJSON(data);
+                    
+                } else if (message.command === 'requestError') {
+                    const btn = document.getElementById('sendBtn');
+                    btn.classList.remove('loading');
+                    btn.disabled = false;
+                    
+                    const container = document.getElementById('response-container');
+                    container.style.display = 'flex';
+                    
+                    const badge = document.getElementById('status-badge');
+                    badge.textContent = 'Error';
+                    badge.className = 'status-badge status-error';
+                    
+                    const body = document.getElementById('response-body');
+                    body.textContent = message.error;
+                    
+                } else if (message.command === 'updateRequestData') {
+                    // 设置当前请求对象
+                    currentRequest = message.data;
+                    
+                    const { method, url, headers, body } = message.data;
+                    document.getElementById('method').value = method || 'GET';
+                    document.getElementById('url').value = url || '';
+                    if (bodyEditor) {
+                        bodyEditor.setValue(body || '');
                     }
                     
-                    vscode.postMessage({
-                        command: 'saveRequest',
-                        data: requestData
-                    });
+                    // 刷新 Params 标签页
+                    refreshParamsFromUrl();
+                    
+                    // 清空并重新填充 headers
+                    const tbody = document.getElementById('headers-body');
+                    tbody.innerHTML = '';
+                    if (headers && headers.length > 0) {
+                        headers.forEach(h => addHeaderRow(h.key, h.value, true));
+                    } else {
+                        addHeaderRow('Content-Type', 'application/json');
+                    }
+                    
+                    // 如果是已保存请求，显示保存状态
+                    if (currentRequest && currentRequest.id) {
+                        updateSaveIndicator('saved');
+                    } else {
+                        updateSaveIndicator('unsaved');
+                    }
+                } else if (message.command === 'updateSaveStatus') {
+                    // 处理自动保存状态更新
+                    updateSaveIndicator(message.status, message.message);
+                } else if (message.command === 'resetResponse') {
+                    // 重置响应区域
+                    const container = document.getElementById('response-container');
+                    if (container) {
+                        container.style.display = 'none';
+                    }
                 }
+            });
             })();
         </script>
     </body>
@@ -942,10 +1396,10 @@ export class HttpClientPanel {
     }
     
     // 转换headers格式
-    let formattedHeaders: Array<{key: string, value: string}> = [];
+        let formattedHeaders: Array<{ key: string, value: string }> = [];
     if (request.headers) {
       if (Array.isArray(request.headers)) {
-        formattedHeaders = request.headers as Array<{key: string, value: string}>;
+                formattedHeaders = request.headers as Array<{ key: string, value: string }>;
       } else {
         formattedHeaders = Object.entries(request.headers).map(([key, value]) => ({ key, value }));
       }
