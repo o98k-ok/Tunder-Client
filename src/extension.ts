@@ -18,11 +18,6 @@ export function activate(context: vscode.ExtensionContext) {
   // 创建curlParserService实例
   const curlParser = new CurlParserService();
 
-  // 打印存储路径和数据
-  console.log('存储路径:', context.globalStoragePath);
-  console.log('所有文件夹:', directoryService.getAllDirectories());
-  console.log('所有请求:', requestService.getAllRequests());
-
   // 创建目录树视图提供者
   const directoryTreeProvider = new DirectoryTreeProvider(directoryService, requestService, context.extensionUri);
 
@@ -214,8 +209,6 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      console.log('加载请求:', request);
-
       try {
         if (!HttpClientPanel.currentPanel) {
           HttpClientPanel.createOrShow(context.extensionUri, request);
@@ -237,20 +230,10 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      console.log('保存请求:', {
-        requestData,
-        currentRequest: HttpClientPanel.currentPanel?.getCurrentRequestItem(),
-        folderId: HttpClientPanel.currentPanel?.folderId,
-        allFolders: directoryService.getAllDirectories(),
-        allRequests: requestService.getAllRequests()
-      });
-
       // 获取当前请求对象
       const currentRequest = HttpClientPanel.currentPanel?.getCurrentRequestItem();
 
       if (currentRequest) {
-        console.log('更新现有请求:', currentRequest.id);
-
         // 更新现有请求
         const updated = requestService.updateRequest(currentRequest.id, {
           name: currentRequest.name,
@@ -272,12 +255,6 @@ export function activate(context: vscode.ExtensionContext) {
 
       // 获取当前文件夹
       const folderId = HttpClientPanel.currentPanel?.folderId || '';
-      console.log('创建新请求的文件夹信息:', {
-        folderId,
-        allFolders: directoryService.getAllDirectories(),
-        currentFolder: folderId ? directoryService.getDirectory(folderId) : null
-      });
-
       let folderToUse = null;
 
       if (folderId) {
@@ -332,9 +309,7 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      console.log('[AutoSave] 开始自动保存:', requestData.id);
-
-      try {
+        try {
         // 调用 RequestService 更新请求
         const updated = requestService.updateRequest(requestData.id, {
           name: requestData.name,
@@ -346,8 +321,6 @@ export function activate(context: vscode.ExtensionContext) {
         });
 
         if (updated) {
-          console.log('[AutoSave] 保存成功');
-
           // 静默刷新目录树（不展开/折叠）
           directoryTreeProvider.refresh();
 
@@ -527,5 +500,5 @@ function generateRequestName(method: string, url: string): string {
 }
 
 export function deactivate() {
-  console.log('Tunder Client 插件已停用');
+  // 清理资源
 }

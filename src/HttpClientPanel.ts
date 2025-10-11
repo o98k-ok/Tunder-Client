@@ -725,7 +725,6 @@ export class HttpClientPanel {
             function autoSave() {
                 // 关键判断：只有已保存的请求才自动保存
                 if (!currentRequest || !currentRequest.id) {
-                    console.log('[AutoSave] 跳过：新建请求不自动保存');
                     return;
                 }
                 
