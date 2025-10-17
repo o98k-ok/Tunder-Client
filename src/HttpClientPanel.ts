@@ -76,6 +76,9 @@ export class HttpClientPanel {
 
                             this._currentRequest = axios.CancelToken.source();
 
+                            // Start timing measurement
+                            const startTime = Date.now();
+
                             const response = await axios({
                                 method,
                                 url,
@@ -85,6 +88,10 @@ export class HttpClientPanel {
                                 cancelToken: this._currentRequest.token
                             });
 
+                            // Calculate duration
+                            const endTime = Date.now();
+                            const duration = endTime - startTime;
+
                             this._currentRequest = null;
 
                             this._panel.webview.postMessage({
@@ -93,7 +100,8 @@ export class HttpClientPanel {
                                     status: response.status,
                                     statusText: response.statusText,
                                     headers: response.headers,
-                                    data: response.data
+                                    data: response.data,
+                                    duration: duration
                                 }
                             });
                         } catch (error) {
@@ -175,6 +183,22 @@ export class HttpClientPanel {
                             vscode.commands.executeCommand('httpClient.autoSaveRequest', message.data);
                         } catch (error) {
                             console.error('自动保存请求时出错:', error);
+                        }
+                        return;
+                    case 'getClipboardContent':
+                        try {
+                            // 获取剪贴板内容
+                            const clipboardContent = await vscode.env.clipboard.readText();
+                            this._panel.webview.postMessage({
+                                command: 'clipboardContent',
+                                content: clipboardContent
+                            });
+                        } catch (error) {
+                            console.error('获取剪贴板内容时出错:', error);
+                            this._panel.webview.postMessage({
+                                command: 'clipboardContent',
+                                content: ''
+                            });
                         }
                         return;
                 }
@@ -633,6 +657,49 @@ export class HttpClientPanel {
             cursor: not-allowed;
         }
         
+        /* Body Editor Header */
+        .body-editor-header {
+            display: flex;
+            justify-content: flex-end;
+            padding: 8px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+        }
+        
+        /* Format Button */
+        .format-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 12px;
+            background: var(--button-bg);
+            color: var(--button-fg);
+            border: none;
+            border-radius: var(--border-radius);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .format-button:hover {
+            background: var(--button-hover);
+        }
+        
+        .format-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .format-icon {
+            font-size: 14px;
+            line-height: 1;
+        }
+        
+        .format-text {
+            font-size: 12px;
+        }
+        
         .copy-icon {
             font-size: 14px;
             line-height: 1;
@@ -724,6 +791,12 @@ export class HttpClientPanel {
             <!-- Body 标签页 -->
             <div class="tab-content" id="body-tab">
                 <div class="body-editor">
+                    <div class="body-editor-header">
+                        <button class="format-button" id="format-json-btn" title="Format JSON">
+                            <span class="format-icon">⚡</span>
+                            <span class="format-text">Format</span>
+                        </button>
+                    </div>
                     <div id="body-editor" class="monaco-container"></div>
                 </div>
             </div>
@@ -898,27 +971,16 @@ export class HttpClientPanel {
                     fontSize: 13,
                     fontFamily: 'Consolas, Monaco, Courier New, monospace',
                     wordWrap: 'on',
-                    formatOnPaste: true,   // ✅ 启用粘贴格式化
+                    formatOnPaste: false,   // 禁用自动格式化，避免冲突
                     formatOnType: true,    // ✅ 启用实时格式化
                     tabSize: 2,
-                    insertSpaces: true
+                    insertSpaces: true,
+                    // 确保编辑器可以接收键盘事件
+                    readOnly: false,
+                    // 添加键盘事件支持
+                    contextmenu: true
                 });
                 window.bodyEditor = bodyEditor; // 全局引用
-                
-                // 自动格式化：粘贴时
-                bodyEditor.onDidPaste(() => {
-                    setTimeout(() => {
-                        if (bodyEditor.getModel().getLanguageId() === 'json') {
-                            try {
-                                const content = bodyEditor.getValue();
-                                JSON.parse(content); // 验证是否为有效 JSON
-                                bodyEditor.getAction('editor.action.formatDocument').run();
-                    } catch (e) {
-                                // 非法 JSON，不格式化
-                            }
-                        }
-                    }, 50);
-                });
                 
                 // 自动格式化：失焦时
                 let lastContent = '';
@@ -942,18 +1004,94 @@ export class HttpClientPanel {
                 
                 // 绑定依赖 bodyEditor 的事件（必须在 Monaco 初始化后）
                 bindEditorDependentEvents();
+                
+                // 添加键盘事件监听器来检测 Command+V 并模拟粘贴
+                document.addEventListener('keydown', function(event) {
+                    // 检测 Command+V (macOS) 或 Ctrl+V (Windows/Linux)
+                    const isPasteShortcut = (event.metaKey || event.ctrlKey) && event.key === 'v';
+                    
+                    if (isPasteShortcut) {
+                        // 检查是否在 Body 标签页且编辑器存在
+                        const bodyTab = document.getElementById('body-tab');
+                        if (bodyTab && bodyTab.classList.contains('active') && bodyEditor) {
+                            console.log('[Paste] Detected paste shortcut, requesting clipboard content');
+                            
+                            // 阻止默认粘贴行为
+                            event.preventDefault();
+                            event.stopPropagation();
+                            
+                            // 确保编辑器有焦点
+                            if (!bodyEditor.hasTextFocus()) {
+                                bodyEditor.focus();
+                            }
+                            
+                            // 请求剪贴板内容
+                            vscode.postMessage({
+                                command: 'getClipboardContent'
+                            });
+                            
+                            return false;
+                        }
+                    }
+                });
+                
+                // 监听来自 VS Code 的剪贴板内容响应
+                window.addEventListener('message', function(event) {
+                    if (event.data.command === 'clipboardContent') {
+                        const content = event.data.content;
+                        if (content && bodyEditor) {
+                            console.log('[Paste] Received clipboard content, simulating input');
+                            simulatePasteInput(content);
+                        }
+                    }
+                });
+                
+                // 模拟粘贴输入的函数
+                function simulatePasteInput(content) {
+                    if (!bodyEditor) return;
+                    
+                    const model = bodyEditor.getModel();
+                    const selection = bodyEditor.getSelection();
+                    
+                    // 如果有选中文本，使用选中范围；否则使用光标位置
+                    const range = selection ? {
+                        startLineNumber: selection.startLineNumber,
+                        startColumn: selection.startColumn,
+                        endLineNumber: selection.endLineNumber,
+                        endColumn: selection.endColumn
+                    } : {
+                        startLineNumber: bodyEditor.getPosition().lineNumber,
+                        startColumn: bodyEditor.getPosition().column,
+                        endLineNumber: bodyEditor.getPosition().lineNumber,
+                        endColumn: bodyEditor.getPosition().column
+                    };
+                    
+                    // 在指定范围插入内容（如果有选中文本，会先清除选中内容）
+                    const edit = {
+                        range: range,
+                        text: content
+                    };
+                    
+                    // 执行编辑
+                    model.pushEditOperations([], [edit], () => null);
+                    
+                    // 确保语言模式为 JSON
+                    if (model.getLanguageId() !== 'json') {
+                        monaco.editor.setModelLanguage(model, 'json');
+                    }
+                    
+                    console.log('[Paste] Content successfully inserted via simulation, replaced selection:', !!selection);
+                }
             });
             
             // 语言检测函数
             function updateEditorLanguage() {
                 if (!bodyEditor) return;
                 
-                const contentType = getActiveContentType();
-                const body = bodyEditor.getValue();
-                const lang = detectLanguage(body, contentType);
-                
-                if (bodyEditor.getModel().getLanguageId() !== lang) {
-                    monaco.editor.setModelLanguage(bodyEditor.getModel(), lang);
+                // 在 Body 标签页中，始终使用 JSON 模式以确保格式化功能正常工作
+                const currentLang = bodyEditor.getModel().getLanguageId();
+                if (currentLang !== 'json') {
+                    monaco.editor.setModelLanguage(bodyEditor.getModel(), 'json');
                 }
             }
             
@@ -1325,9 +1463,60 @@ export class HttpClientPanel {
             
             // 初始化：隐藏复制按钮
             document.getElementById('copy-response-btn').style.display = 'none';
+            
+            // 绑定格式化按钮事件（在页面加载时绑定，不依赖编辑器初始化）
+            document.getElementById('format-json-btn')?.addEventListener('click', () => {
+                if (!bodyEditor) {
+                    vscode.window.showWarningMessage('Editor is not ready');
+                    return;
+                }
+                
+                const model = bodyEditor.getModel();
+                if (!model) {
+                    vscode.window.showWarningMessage('No content to format');
+                    return;
+                }
+                
+                // 确保编辑器使用 JSON 模式
+                if (model.getLanguageId() !== 'json') {
+                    monaco.editor.setModelLanguage(model, 'json');
+                }
+                
+                try {
+                    // Validate JSON first
+                    const content = model.getValue();
+                    if (content.trim()) {
+                        JSON.parse(content);
+                    }
+                    
+                    // Format if valid
+                    bodyEditor.getAction('editor.action.formatDocument').run();
+                    
+                    // Show success feedback
+                    const button = document.getElementById('format-json-btn');
+                    const originalText = button.querySelector('.format-text').textContent;
+                    button.querySelector('.format-text').textContent = 'Formatted!';
+                    
+                    setTimeout(() => {
+                        button.querySelector('.format-text').textContent = originalText;
+                    }, 1000);
+                    
+                } catch (error) {
+                    vscode.window.showErrorMessage('Invalid JSON format: ' + error.message);
+                }
+            });
 
             // 格式化 JSON
             // Beautify 按钮已移除，Monaco Editor 自动格式化
+            
+            // 格式化持续时间显示
+            function formatDuration(ms) {
+                if (ms < 1000) {
+                    return ms + 'ms';
+                } else {
+                    return (ms / 1000).toFixed(2) + 's';
+                }
+            }
             
             // 格式化 JSON 带语法高亮
             function formatJSON(obj) {
@@ -1403,7 +1592,7 @@ export class HttpClientPanel {
                     const message = event.data;
                 
                 if (message.command === 'responseReceived') {
-                            const { status, statusText, headers, data } = message.data;
+                            const { status, statusText, headers, data, duration } = message.data;
                     
                     // 存储原始响应数据
                     rawResponseData = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
@@ -1418,6 +1607,12 @@ export class HttpClientPanel {
                     const badge = document.getElementById('status-badge');
                     badge.textContent = status + ' ' + statusText;
                     badge.className = 'status-badge ' + (status < 300 ? 'status-success' : status < 400 ? 'status-info' : 'status-error');
+                    
+                    // Update timing display
+                    const responseTimeElement = document.getElementById('response-time');
+                    if (responseTimeElement && duration !== undefined) {
+                        responseTimeElement.textContent = formatDuration(duration);
+                    }
                     
                     const responseBody = document.getElementById('response-body');
                     responseBody.innerHTML = formatJSON(data);
