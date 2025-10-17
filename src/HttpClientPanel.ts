@@ -878,10 +878,19 @@ export class HttpClientPanel {
             
             // 初始化 Monaco Editor
             require(['vs/editor/editor.main'], function() {
+                // 检测 VS Code 主题（通过 CSS 变量的明度来判断）
+                const bgColor = getComputedStyle(document.documentElement)
+                    .getPropertyValue('--vscode-editor-background').trim();
+                
+                // 简单的亮度检测：如果背景色偏亮则使用 vs 主题，否则使用 vs-dark
+                const isDarkTheme = !bgColor || bgColor.startsWith('#') && 
+                    parseInt(bgColor.slice(1, 3), 16) < 128;
+                const monacoTheme = isDarkTheme ? 'vs-dark' : 'vs';
+                
                 bodyEditor = monaco.editor.create(document.getElementById('body-editor'), {
                     value: '',
                     language: 'json',
-                    theme: 'vs-dark',
+                    theme: monacoTheme,
                     automaticLayout: true,
                     minimap: { enabled: false },
                     lineNumbers: 'on',
@@ -1059,6 +1068,17 @@ export class HttpClientPanel {
             // 添加参数行
             function addParamRow(key = '', value = '', index = -1) {
                 const tbody = document.getElementById('params-body');
+                
+                // Check if this is the first parameter being added
+                const existingRows = tbody.querySelectorAll('tr');
+                const isEmpty = existingRows.length === 0 || 
+                               (existingRows.length === 1 && existingRows[0].innerHTML.includes('No parameters'));
+                
+                if (isEmpty) {
+                    // Clear empty state message
+                    tbody.innerHTML = '';
+                }
+                
                 const row = tbody.insertRow();
                 row.dataset.paramIndex = index;
                 row.innerHTML = \`
@@ -1079,6 +1099,13 @@ export class HttpClientPanel {
                 row.querySelector('.delete-btn').addEventListener('click', () => {
                     row.remove();
                     updateUrlFromParams();
+                    
+                    // Check if we need to show empty state
+                    const remainingRows = tbody.querySelectorAll('tr');
+                    if (remainingRows.length === 0) {
+                        const emptyRow = tbody.insertRow();
+                        emptyRow.innerHTML = '<td colspan="4" style="text-align:center;color:var(--fg-secondary);padding:20px;">No parameters. Add one to get started.</td>';
+                    }
                 });
             }
             

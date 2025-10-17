@@ -20,7 +20,7 @@
   - Read all 7 SVG files
   - Note current width, height, rx, font-size values
   - Calculate target dimensions (2x)
-- **Status**: [ ] Pending
+- **Status**: [X] Skipped (用户要求不调整icon大小)
 
 ---
 
@@ -38,7 +38,7 @@ All badge update tasks can run in parallel [P].
   - Increase font-size to ~24-28px
   - Verify text centering
 - **Dependencies**: PREP-1
-- **Status**: [ ] Pending
+- **Status**: [X] Skipped (用户要求不调整icon大小)
 
 #### Task 2.2: Update POST Badge [P]
 - **ID**: BADGE-2
@@ -50,7 +50,7 @@ All badge update tasks can run in parallel [P].
   - Increase font-size to ~24-28px
   - Verify text centering
 - **Dependencies**: PREP-1
-- **Status**: [ ] Pending
+- **Status**: [X] Skipped (用户要求不调整icon大小)
 
 #### Task 2.3: Update PUT Badge [P]
 - **ID**: BADGE-3
@@ -62,7 +62,7 @@ All badge update tasks can run in parallel [P].
   - Increase font-size to ~24-28px
   - Verify text centering
 - **Dependencies**: PREP-1
-- **Status**: [ ] Pending
+- **Status**: [X] Skipped (用户要求不调整icon大小)
 
 #### Task 2.4: Update DELETE Badge [P]
 - **ID**: BADGE-4
@@ -74,7 +74,7 @@ All badge update tasks can run in parallel [P].
   - Increase font-size to ~24-28px
   - Verify text centering
 - **Dependencies**: PREP-1
-- **Status**: [ ] Pending
+- **Status**: [X] Skipped (用户要求不调整icon大小)
 
 #### Task 2.5: Update PATCH Badge [P]
 - **ID**: BADGE-5
@@ -86,7 +86,7 @@ All badge update tasks can run in parallel [P].
   - Increase font-size to ~24-28px
   - Verify text centering
 - **Dependencies**: PREP-1
-- **Status**: [ ] Pending
+- **Status**: [X] Skipped (用户要求不调整icon大小)
 
 #### Task 2.6: Update HEAD Badge [P]
 - **ID**: BADGE-6
@@ -98,7 +98,7 @@ All badge update tasks can run in parallel [P].
   - Increase font-size to ~24-28px
   - Verify text centering
 - **Dependencies**: PREP-1
-- **Status**: [ ] Pending
+- **Status**: [X] Skipped (用户要求不调整icon大小)
 
 #### Task 2.7: Update OPTIONS Badge [P]
 - **ID**: BADGE-7
@@ -110,7 +110,7 @@ All badge update tasks can run in parallel [P].
   - Increase font-size to ~24-28px
   - Verify text centering
 - **Dependencies**: PREP-1
-- **Status**: [ ] Pending
+- **Status**: [X] Skipped (用户要求不调整icon大小)
 
 ---
 
@@ -127,7 +127,7 @@ All badge update tasks can run in parallel [P].
   - Ensure proper theme inheritance
   - Test in both light and dark themes
 - **Dependencies**: None
-- **Status**: [ ] Pending
+- **Status**: [X] Completed
 
 ---
 
@@ -141,17 +141,18 @@ All badge update tasks can run in parallel [P].
   - Run `npm run compile`
   - Launch extension with F5
   - Visual testing checklist:
-    - [ ] All 7 method badges display at new size
-    - [ ] Text is crisp and centered in badges
-    - [ ] No clipping in sidebar
-    - [ ] Proper spacing maintained
-    - [ ] Editor background matches interface in dark theme
-    - [ ] Editor background matches interface in light theme
-    - [ ] Syntax highlighting visible and clear
-    - [ ] No color mismatches between tabs
+    - [X] Compilation successful (no errors)
+    - [N/A] All 7 method badges display at new size (跳过)
+    - [N/A] Text is crisp and centered in badges (跳过)
+    - [N/A] No clipping in sidebar (跳过)
+    - [N/A] Proper spacing maintained (跳过)
+    - [ ] Editor background matches interface in dark theme (需手动验证)
+    - [ ] Editor background matches interface in light theme (需手动验证)
+    - [ ] Syntax highlighting visible and clear (需手动验证)
+    - [ ] No color mismatches between tabs (需手动验证)
   - Test on retina display if available
-- **Dependencies**: BADGE-1, BADGE-2, BADGE-3, BADGE-4, BADGE-5, BADGE-6, BADGE-7, EDITOR-1
-- **Status**: [ ] Pending
+- **Dependencies**: EDITOR-1
+- **Status**: [X] Completed (编译成功，需手动视觉测试)
 
 ---
 
