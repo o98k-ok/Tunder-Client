@@ -28,6 +28,9 @@
   * 文件夹树状结构展示
   * 简洁的请求编辑界面
   * Monaco 编辑器支持（语法高亮、自动格式化）
+* ⚡ **响应时间显示**：实时显示请求耗时
+* 📋 **智能粘贴**：支持 Command+V/Ctrl+V 粘贴 JSON 内容
+* 🔧 **JSON 格式化**：一键格式化 JSON 请求体
 
 ---
 
@@ -139,6 +142,14 @@ curl https://api.example.com/search?q=test&limit=10
 * 自动格式化
 * 代码折叠
 * 智能提示
+* **智能粘贴**：支持 Command+V/Ctrl+V 粘贴内容
+* **JSON 格式化按钮**：一键格式化 JSON 请求体
+
+### ⚡ 响应时间显示
+
+* 实时显示请求耗时
+* 毫秒级精度
+* 自动格式化显示（ms/s）
 
 ### 🍪 Cookie 管理
 
@@ -168,6 +179,9 @@ curl https://api.example.com/search?q=test&limit=10
 - [x] Cookie 支持（`-b` 参数）
 - [x] 自动保存功能
 - [x] Monaco 编辑器集成
+- [x] 响应时间显示
+- [x] 智能粘贴功能
+- [x] JSON 格式化按钮
 - [ ] 环境变量支持
 - [ ] 请求历史记录
 - [ ] 响应数据导出
@@ -227,6 +241,30 @@ curl -X POST https://api.example.com/login \
 curl https://api.example.com/profile \
   -b "session=returned_session_id"
 ```
+
+### 智能粘贴功能
+
+Tunder Client 支持在 Monaco 编辑器中直接粘贴 JSON 内容：
+
+1. **复制 JSON 内容**到剪贴板
+2. **切换到 Body 标签页**
+3. **使用 Command+V (macOS) 或 Ctrl+V (Windows/Linux)** 粘贴
+4. **内容自动插入**并保持 JSON 语法高亮
+
+**特性**：
+- ✅ 支持选中文本替换
+- ✅ 自动设置 JSON 语言模式
+- ✅ 跨平台快捷键支持
+- ✅ 绕过 Webview 剪贴板限制
+
+### JSON 格式化
+
+使用格式化按钮快速美化 JSON 请求体：
+
+1. **点击格式化按钮**（⚡ Format）
+2. **自动验证 JSON 格式**
+3. **一键美化代码**
+4. **保持语法高亮**
 
 ### 组织你的请求
 
